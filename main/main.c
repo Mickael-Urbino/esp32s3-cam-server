@@ -1,7 +1,12 @@
 #include <stdio.h>
 #include "esp_wifi.h"
 #include "nvs_flash.h" //nvs_flash initialization is required to initialize Wifi properly. It should be because ESP-IDF has made it mandatory to store wifi config, and doing so in nvs is their DEFAULT BEHAVIOR for wifi applications, to ease development.
-#include "esp_spiffs.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_http_server.h"
+#include "esp_netif.h"
+#include "lwip/err.h"
+#include "lwip/sys.h"
 #include "myserver_test.h"
 
 #define MY_WIFI_SSID "ESP32S3-CAM-SERVER"   //Name of the wifi ACCESS POINT (Used in ESP-IDF's wifi_config_ap "structure" ??)
@@ -10,28 +15,40 @@
 #define MY_WIFI_MODE    WIFI_MODE_AP        //Select Default Wifi Mode. WIFI_MODE_NULL / WIFI_MODE_STA / WIFI_MODE_AP / WIFI_MODE_APSTA / WIFI_MODE_NAN / WIFI_MODE_MAX
 
 
-void app_main(void)
-{
-    printf("Build Successful ! \n\n");
 
+/* initialize_nvs_flash() function that implements some error recovering code */
+void initialize_nvs_flash(void)
+{
     printf("Initializing NVS Flash to allow Wifi configuration storage...\n");
     esp_err_t nvs_flash_init_result = nvs_flash_init(); //Try to Initialise Non Volatile Storage Flash and check if it has been successfully initialized
 
     if (nvs_flash_init_result != ESP_OK)
     {
         printf("Issue when initializing NVS Flash.\n");
+
         if (nvs_flash_init_result == ESP_ERR_NVS_NO_FREE_PAGES)
         {
-            printf("There is no freepage. Erasing NVS Flash...\n");
-            nvs_flash_erase();
+            while (nvs_flash_init_result == ESP_ERR_NVS_NO_FREE_PAGES)
+            {
+                    printf("There is no freepage. Erasing NVS Flash before retrying...\n");
+                    nvs_flash_erase();
+
+                    printf("Retrying NVS Flash initialisation...\n");
+                    nvs_flash_init_result = nvs_flash_init();
+
+                    if (nvs_flash_init_result == ESP_OK)
+                    {
+                        printf("Successful NVS Initialisation.\n");
+                    }
+            }       
         }
         if (nvs_flash_init_result == ESP_ERR_NOT_FOUND)
         {
-            printf("There is no NVS Partition label...\n");
+            printf("There is no NVS Partition label... No work around yet.\n");
         }
          if (nvs_flash_init_result == ESP_ERR_NO_MEM)
         {
-            printf("Memory could not be allocated for internal structures.\n");
+            printf("Memory could not be allocated for internal structures. No work around yet.\n");
         }
     }
     else
@@ -39,10 +56,14 @@ void app_main(void)
         printf("Successful NVS Flash initialization. \n");
     }
 
+}
 
+/* initialize all Wifi requirements */
+void initialize_wifi(void)
+{
     printf("Initializing Wifi...\n");
     wifi_init_config_t my_wifi_cfg = WIFI_INIT_CONFIG_DEFAULT();    //Set Wifi default configuration into my_wifi_cfg structure
-    esp_err_t wifi_init_result = esp_wifi_init(&my_wifi_cfg);                                    //
+    esp_err_t wifi_init_result = esp_wifi_init(&my_wifi_cfg);
 
     if (wifi_init_result != ESP_OK)
     {
@@ -160,7 +181,7 @@ void app_main(void)
     }
     else
     {
-        printf("Wifi configuration properly set.");
+        printf("Wifi configuration properly set.\n");
     }
     
 
@@ -196,6 +217,134 @@ void app_main(void)
         printf("Wifi Control Block created, and wifi started. \n");
     }
 
+}
+
+/* Function that will be called during the GET request */
+ esp_err_t http_get_handler(httpd_req_t* req)
+ {
+    const char message[] = "Responding to the GET request by sending this text.";
+    httpd_resp_send(req, message, HTTPD_RESP_USE_STRLEN);
+    return ESP_OK;
+ }
+
+ /* Function that will be called during POST request */
+esp_err_t http_post_handler(httpd_req_t* req)
+{
+    char content[100]; //Buffer used for HTTP POST request content.
+    size_t recv_size = sizeof(content); //Used to truncate if content length is larger than the buffer
+    int ret = httpd_req_recv(req, content, recv_size);
+    if (ret <= 0) {
+        if (ret == HTTPD_SOCK_ERR_TIMEOUT){
+            httpd_resp_send_408(req);
+        }
+        return ESP_FAIL;
+    }
+
+    const char message[] = "Responding to the post request by sending this text";
+    httpd_resp_send(req, message, HTTPD_RESP_USE_STRLEN);
+    return ESP_OK;
+}
+
+/* Structure for GET */
+httpd_uri_t uri_get = {
+    .uri        = "/My_server",
+    .method     = HTTP_GET,
+    .handler    = http_get_handler,
+    .user_ctx   = NULL
+};
+
+/* Structure for POST */
+httpd_uri_t uri_post = {
+    .uri        = "/My_server",
+    .method     = HTTP_POST,
+    .handler    = http_post_handler,
+    .user_ctx   = NULL
+};
+
+/* Function that will be used to start webserver*/
+httpd_handle_t start_webserver(void)
+{
+    httpd_config_t server_cfg = HTTPD_DEFAULT_CONFIG();
+
+    httpd_handle_t server = NULL;
+
+    if (httpd_start(&server, &server_cfg) == ESP_OK)
+    {
+        httpd_register_uri_handler(server, &uri_get);
+        httpd_register_uri_handler(server, &uri_post);
+    }
+    return server;
+}
+
+/* Dummy task printing something every 1s to see if Mutitasking is working */
+void vTaskTestFreeRTOS(void *pvParameters)
+{
+    const TickType_t delay1000ms = pdMS_TO_TICKS(1000);
+
+    for (;;)
+    {
+        printf("1s delay task is printing now...\n");
+        vTaskDelay(delay1000ms);
+    }
+
+    vTaskDelete(NULL);
+
+}
+
+/* Create a task to start webserver */
+void vTaskStartWebServer(void *pvParameters)
+{
+    start_webserver();
+
+    for (;;)
+    {
+        printf("Server Started..\n");
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+    vTaskDelete(NULL);
+}
+
+
+void app_main(void)
+{    
+
+    initialize_nvs_flash();
+    esp_netif_init();
+    esp_event_loop_create_default();  
+    initialize_wifi();
+
+    myserver_func_test();
+
+    xTaskCreatePinnedToCore(vTaskTestFreeRTOS, "Test Task", 4096, NULL, 0, NULL, 1);
+    xTaskCreatePinnedToCore(vTaskStartWebServer, "Start Webserver Task", 4096, NULL, 0, NULL, 1);
+
+/*
+    esp_netif_ip_info_t ipInfo; 
+    	
+    // IP address.
+    esp_netif_get_ip_info(ESP_IF_WIFI_AP, &ipInfo);
+    printf("My IP: " IPSTR "\n", IP2STR(&ipInfo.ip));
+
+*/
+
+    //vTaskStartScheduler(); //vTaskStartScheduler() is not needed and creates an issue here, because it is already started before task app_main is called (it is default esp-idf behavior)
+
+    /*printf("Wifi will be disabled now...\n");
+    esp_err_t wifi_stop_result = esp_wifi_stop();
+
+    if (wifi_stop_result != ESP_OK)
+    {
+        printf("Failed to stop Wifi. \n");
+        if (wifi_stop_result == ESP_ERR_WIFI_NOT_INIT)
+        {
+            printf("Wifi is not initialized by esp_wifi_init. \n");
+        }   
+    }
+    else
+    {
+        printf("Wifi Stopping Successful. \n");
+    }
+
 
     printf("Starting Wifi Deinitialization...\n");
     esp_err_t wifi_deinit_result = esp_wifi_deinit();
@@ -211,7 +360,7 @@ void app_main(void)
     else
     {
         printf("Wifi Deinit Successful. \n");
-    }
+    }*/
 
-    myserver_func_test();
+    
 }

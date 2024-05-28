@@ -17,6 +17,9 @@
     "idf.toolsPathWin": "C:\\Users\\micka\\.espressif",
     "files.associations": {
         "esp_wifi.h": "c",
-        "freertos.h": "c"
-    }
+        "freertos.h": "c",
+        "esp_spiffs.h": "c",
+        "esp_netif.h": "c"
+    },
+    "C_Cpp.errorSquiggles": "disabled"
 }
