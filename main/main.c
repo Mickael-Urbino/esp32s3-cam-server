@@ -1,5 +1,5 @@
-#include "myServer_test.h"
 #include "myWifi_test.h"
+#include "myServer_test.h"
 #include <stdio.h>
 #include "esp_wifi.h"
 #include "nvs_flash.h" //nvs_flash initialization is required to initialize Wifi properly. It should be because ESP-IDF has made it mandatory to store wifi config, and doing so in nvs is their DEFAULT BEHAVIOR for wifi applications, to ease development.
@@ -9,6 +9,9 @@
 #include "esp_netif.h"
 #include "lwip/err.h"
 #include "lwip/sys.h"
+
+
+
 
 
 #define MY_WIFI_SSID "ESP32S3-CAM-SERVER"   //Name of the wifi ACCESS POINT (Used in ESP-IDF's wifi_config_ap "structure" ??)
@@ -315,8 +318,8 @@ void app_main(void)
     esp_event_loop_create_default();  
     initialize_wifi();
 
-    myWifi_func_test();
-    myServer_func_test();
+    WifiComponentTest();
+    ServerComponentTest();
 
     //start_webserver();
 

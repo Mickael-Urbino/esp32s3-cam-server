@@ -3,8 +3,8 @@
 #include <stdio.h>
 #include "myWifi_test.h"
 
-void myWifi_func_test(void)
+void WifiComponentTest(void)
 {
-    printf("myWifi Component successfully linked to main.c\n");
+    printf("myWifi Component was successfully linked to main.c\n");
 
 }
