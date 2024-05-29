@@ -1,7 +1,9 @@
-#include <stdio.h>
-#include "myserver_test.h"
+/* Don't forget to save all files when changing components names or it won't flash */
 
-void myserver_func_test(void)
+#include <stdio.h>
+#include "myServer_test.h"
+
+void myServer_func_test(void)
 {
-    printf("myserver component is properly linked to the main.c file. \n");
+    printf("myServer component is properly linked to the main.c file. \n");
 }

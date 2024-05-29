@@ -1,3 +1,5 @@
+#include "myServer_test.h"
+#include "myWifi_test.h"
 #include <stdio.h>
 #include "esp_wifi.h"
 #include "nvs_flash.h" //nvs_flash initialization is required to initialize Wifi properly. It should be because ESP-IDF has made it mandatory to store wifi config, and doing so in nvs is their DEFAULT BEHAVIOR for wifi applications, to ease development.
@@ -7,7 +9,7 @@
 #include "esp_netif.h"
 #include "lwip/err.h"
 #include "lwip/sys.h"
-#include "myserver_test.h"
+
 
 #define MY_WIFI_SSID "ESP32S3-CAM-SERVER"   //Name of the wifi ACCESS POINT (Used in ESP-IDF's wifi_config_ap "structure" ??)
 #define MY_WIFI_PSWD "DroneVTX"             //Password to connect to the ACCESS POINT (Used in ESP-IDF's wifi_config_ap "structure" ??)
@@ -247,7 +249,7 @@ esp_err_t http_post_handler(httpd_req_t* req)
 
 /* Structure for GET */
 httpd_uri_t uri_get = {
-    .uri        = "/My_server",
+    .uri        = "/server",
     .method     = HTTP_GET,
     .handler    = http_get_handler,
     .user_ctx   = NULL
@@ -255,7 +257,7 @@ httpd_uri_t uri_get = {
 
 /* Structure for POST */
 httpd_uri_t uri_post = {
-    .uri        = "/My_server",
+    .uri        = "/server",
     .method     = HTTP_POST,
     .handler    = http_post_handler,
     .user_ctx   = NULL
@@ -279,12 +281,12 @@ httpd_handle_t start_webserver(void)
 /* Dummy task printing something every 1s to see if Mutitasking is working */
 void vTaskTestFreeRTOS(void *pvParameters)
 {
-    const TickType_t delay1000ms = pdMS_TO_TICKS(1000);
+    //const TickType_t delay1000ms = pdMS_TO_TICKS(1000);
 
     for (;;)
     {
-        printf("1s delay task is printing now...\n");
-        vTaskDelay(delay1000ms);
+        //printf("1s delay task is printing now...\n");
+        //vTaskDelay(delay1000ms);
     }
 
     vTaskDelete(NULL);
@@ -298,8 +300,8 @@ void vTaskStartWebServer(void *pvParameters)
 
     for (;;)
     {
-        printf("Server Started..\n");
-        vTaskDelay(pdMS_TO_TICKS(500));
+        //printf("Server Started..\n");
+        //vTaskDelay(pdMS_TO_TICKS(500));
     }
     vTaskDelete(NULL);
 }
@@ -313,10 +315,13 @@ void app_main(void)
     esp_event_loop_create_default();  
     initialize_wifi();
 
-    myserver_func_test();
+    myWifi_func_test();
+    myServer_func_test();
 
-    xTaskCreatePinnedToCore(vTaskTestFreeRTOS, "Test Task", 4096, NULL, 0, NULL, 1);
-    xTaskCreatePinnedToCore(vTaskStartWebServer, "Start Webserver Task", 4096, NULL, 0, NULL, 1);
+    //start_webserver();
+
+    //xTaskCreatePinnedToCore(vTaskTestFreeRTOS, "Test Task", 4096, NULL, 0, NULL, 1);
+    //xTaskCreatePinnedToCore(vTaskStartWebServer, "Start Webserver Task", 4096, NULL, 0, NULL, 1);
 
 /*
     esp_netif_ip_info_t ipInfo; 
