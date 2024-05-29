@@ -1,4 +1,4 @@
-/* Don't forget to save all files when changing components names or it won't flash */
+/* Don't forget to save all files when changing components names or it won't flash ;) */
 
 #include <stdio.h>
 #include "myServer_test.h"
