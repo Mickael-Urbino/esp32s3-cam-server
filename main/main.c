@@ -98,8 +98,6 @@ void vTaskStartWebServer(void *pvParameters)
 void app_main(void)
 {    
 
-    initialize_nvs_flash();
-    esp_event_loop_create_default();  
     initialize_wifi();
 
     WifiComponentTest();
