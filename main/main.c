@@ -12,7 +12,7 @@
 /* Function that will be called during the GET request */
  esp_err_t http_get_handler(httpd_req_t* req)
  {
-    const char message[] = "Responding to the GET request by sending this text.";
+    const char message[] = "GET : Test Get handler";
     httpd_resp_send(req, message, HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
  }
@@ -103,7 +103,7 @@ void app_main(void)
     WifiComponentTest();
     ServerComponentTest();
 
-    //start_webserver();
+    start_webserver();
 
     //xTaskCreatePinnedToCore(vTaskTestFreeRTOS, "Test Task", 4096, NULL, 0, NULL, 1);
     //xTaskCreatePinnedToCore(vTaskStartWebServer, "Start Webserver Task", 4096, NULL, 0, NULL, 1);
