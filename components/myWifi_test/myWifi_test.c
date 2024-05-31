@@ -330,7 +330,40 @@ void initialize_wifi(void)
 
 }
 
+    /*printf("Wifi will be disabled now...\n");
+    esp_err_t wifi_stop_result = esp_wifi_stop();
 
+    if (wifi_stop_result != ESP_OK)
+    {
+        printf("Failed to stop Wifi. \n");
+        if (wifi_stop_result == ESP_ERR_WIFI_NOT_INIT)
+        {
+            printf("Wifi is not initialized by esp_wifi_init. \n");
+        }   
+    }
+    else
+    {
+        printf("Wifi Stopping Successful. \n");
+    }
+
+
+    printf("Starting Wifi Deinitialization...\n");
+    esp_err_t wifi_deinit_result = esp_wifi_deinit();
+    
+    if (wifi_deinit_result != ESP_OK)
+    {
+        printf("Failed to deinit Wifi. \n");
+        if (wifi_deinit_result == ESP_ERR_WIFI_NOT_INIT)
+        {
+            printf("Wifi is not initialized by esp_wifi_init. \n");
+        }   
+    }
+    else
+    {
+        printf("Wifi Deinit Successful. \n");
+    }*/
+
+/* Mock Function that prints show if component was properly linked to the main folder */
 void WifiComponentTest(void)
 {
     printf("myWifi Component was successfully linked to main.c\n");
