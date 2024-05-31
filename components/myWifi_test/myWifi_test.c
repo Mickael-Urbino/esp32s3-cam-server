@@ -124,6 +124,18 @@ void myWifi_event_handler(void* handler_arg, esp_event_base_t base, int32_t even
         ESP_LOGW(TAG1, "Station Disconnected");
         break;
 
+        case IP_EVENT_STA_GOT_IP:
+        ESP_LOGW(TAG1, "Station Got IP");
+        break;
+
+        case IP_EVENT_GOT_IP6:
+        ESP_LOGW(TAG1, "Got IP6");
+        break;
+
+        case IP_EVENT_STA_LOST_IP:
+        ESP_LOGW(TAG1, "Station Lost IP");
+        break;
+
         default:
         ESP_LOGW(TAG1, "Other Wifi Event");
 
