@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include "myServer_test.h"
-#include "esp_err.h"
-#include "esp_log.h"
-#include "esp_http_server.h"
-#include "sys/param.h"
-
+#include "esp_err.h"                //For esp_err_t objects
+#include "esp_log.h"                //For ESP_LOGx functions (instead of printf)
+#include "esp_http_server.h"        //For http structures, types, and functions
+#include "sys/param.h"              //For MIN() function
+#include "esp_littlefs.h"           //For File System
 
 
 /* Function that will be called during the GET request */

@@ -2,13 +2,13 @@
 
 #include <stdio.h>
 #include "myWifi_test.h"
-#include "nvs_flash.h" //nvs_flash initialization is required to initialize Wifi properly. It should be because ESP-IDF has made it mandatory to store wifi config, and doing so in nvs is their DEFAULT BEHAVIOR for wifi applications, to ease development.
-#include "esp_wifi.h"
-#include "esp_wifi_default.h"
-#include "esp_netif.h"
-#include "esp_err.h"
-#include "esp_log.h"
-#include "esp_event.h"
+#include "nvs_flash.h"              //Some kind of storage is mandatory for Wifi use. Espressif Defaults with NVS Flash.
+#include "esp_wifi.h"               //For Wifi libraries
+#include "esp_wifi_default.h"       //For Wifi default loop
+#include "esp_netif.h"              //For TCP/IP stack creation
+#include "esp_err.h"                //For esp_err_t objects
+#include "esp_log.h"                //For ESP_LOGx functions (instead of printf)
+#include "esp_event.h"              //For esp events (here Wifi events)
 
 static const char *TAG1 = "myWifi";
 

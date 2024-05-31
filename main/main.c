@@ -1,8 +1,9 @@
 #include "myWifi_test.h"
 #include "myServer_test.h"
 #include <stdio.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
+#include "freertos/FreeRTOS.h"      //For real time operation libraries
+#include "freertos/task.h"          //For Multitasking libraries
+
 
 /* Dummy task printing something every 1s to see if Mutitasking is working */
 void vTaskTestFreeRTOS(void *pvParameters)
