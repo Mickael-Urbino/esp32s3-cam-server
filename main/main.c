@@ -6,13 +6,19 @@
 #include "esp_http_server.h"
 #include "lwip/err.h"
 #include "lwip/sys.h"
+#include "sys/param.h"
 
 
 
 /* Function that will be called during the GET request */
  esp_err_t http_get_handler(httpd_req_t* req)
  {
-    const char message[] = "GET : Test Get handler";
+
+    const char header[] = "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>esp32s3-cam-server</title></head><body>Welcome to esp32s3-cam-server";
+    const char body[] = "<form action=\"http://192.168.4.1/server\" method=\"post\"><label for=\"s1\">ESP32S3-CAM-SERVER :</label><input type =\"text\" id=\"s1\" name=\"s1\" value=\"Write something here\"/><br/><button>Send</button></form></body></html>";
+    char message[512] = "";
+    strcat(message, header);
+    strcat(message, body);
     httpd_resp_send(req, message, HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
  }
@@ -21,7 +27,7 @@
 esp_err_t http_post_handler(httpd_req_t* req)
 {
     char content[100]; //Buffer used for HTTP POST request content.
-    size_t recv_size = sizeof(content); //Used to truncate if content length is larger than the buffer
+    size_t recv_size = MIN(req->content_len, sizeof(content)); //Used to truncate if content length is larger than the buffer
     int ret = httpd_req_recv(req, content, recv_size);
     if (ret <= 0) {
         if (ret == HTTPD_SOCK_ERR_TIMEOUT){
