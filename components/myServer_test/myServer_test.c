@@ -5,7 +5,11 @@
 #include "esp_http_server.h"        //For http structures, types, and functions
 #include "sys/param.h"              //For MIN() function
 #include "esp_littlefs.h"           //For File System
+#include "sys/stat.h"               //For File size calculation
 
+#define INDEX_PAGE_FILENAME             "/Front_End/index.html"
+
+static const char* TAG = "myServer";
 
 /* Function that will be called during the GET request */
  esp_err_t http_get_handler(httpd_req_t* req)
@@ -67,6 +71,108 @@ httpd_handle_t start_webserver(void)
         httpd_register_uri_handler(server, &uri_post);
     }
     return server;
+}
+
+/*Handler for errors that come with littlefs refister function*/
+void error_check_littlefs_init(esp_err_t init_littlefs)
+{
+    switch (init_littlefs){
+        case ESP_OK:
+        ESP_LOGI(TAG, "Filesystem Successfully Mounted");
+        break;
+
+        case ESP_ERR_NO_MEM:
+        ESP_LOGE(TAG, "No memory for Filesystem");
+        break;
+
+        case ESP_ERR_INVALID_STATE:
+        ESP_LOGE(TAG, "Filesystem Image already mounted or partitioin is encrypted");
+        break;
+
+        case ESP_ERR_NOT_FOUND:
+        ESP_LOGE(TAG, "Partition for LittleFS was not found");
+        break;
+
+        case ESP_FAIL:
+        ESP_LOGE(TAG, "Failed to mount/format Filesystem image");
+        break;
+    }
+}
+
+/* Initialize lifflefs */
+void init_littlefs(void)
+{
+    ESP_LOGI(TAG, "Initializing LittleFs");
+
+    esp_vfs_littlefs_conf_t littlefs_config = {
+        .base_path = "/Front_End",
+        .partition_label = "myWebserver",
+        .format_if_mount_failed = true,
+        .dont_mount = false,
+    };
+
+    error_check_littlefs_init(esp_vfs_littlefs_register(&littlefs_config));
+
+    size_t total_bytes = 0;
+    size_t used_bytes = 0;
+
+    esp_err_t get_littlefs_info_result = esp_littlefs_info(littlefs_config.partition_label, &total_bytes, &used_bytes);
+
+    if (get_littlefs_info_result != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to get LittleFS partition information");
+    }
+    else
+    {
+        ESP_LOGI(TAG, "LittleFS Partition size: total: %d,  used: %d", total_bytes, used_bytes);
+    }
+
+}
+
+/* Function to read the HTML file and store its content inside a buffer */
+
+void read_file(char* filename)
+{
+
+    /* Get the file size*/
+    struct stat file_stat;
+    off_t file_size;
+
+    if (stat(filename, &file_stat) == 0)
+    {
+        ESP_LOGI(TAG, "File Size is: %ld Bytes", file_stat.st_size);
+        file_size = file_stat.st_size;
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Couldn't get file properties. Default to 1024 Bytes");
+        file_size = 1024; //(default size)
+    }
+
+    /* Allocate memory to page_content to match size of the file*/
+    char *page_content = (char*) malloc(sizeof(char) * (file_size + 1));
+    if (page_content == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to allocate memory for Page Buffer");
+        exit(1);
+    }
+
+    FILE* myHTML_file = fopen(filename, "r");
+
+    if (myHTML_file == NULL) //Check if file exists
+    {
+        ESP_LOGE(TAG, "Failed to open file for reading");
+        exit(1);
+    }
+    /*
+    while (fgets(page_content, sizeof(page_content), myHTML_file) != NULL) //Read through each line of the file
+    {
+
+    }*/
+
+    free(page_content);
+
+    fclose(myHTML_file);
 }
 
 /* Mock Function that prints show if component was properly linked to the main folder */

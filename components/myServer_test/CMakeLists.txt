@@ -3,4 +3,4 @@ idf_component_register(SRCS "myServer_test.c"
                     REQUIRES    "esp_http_server"
                                 "esp_littlefs")
 
-littlefs_create_partition_image(myWebServer Front_End)
+#littlefs_create_partition_image(myWebServer /Front_End)
