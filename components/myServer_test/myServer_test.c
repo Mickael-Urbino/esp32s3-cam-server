@@ -134,20 +134,6 @@ void init_littlefs(void)
 void read_file(char* filename)
 {
 
-    FILE* f = fopen("/myWebserver/test.txt", "r");
-    printf("Opening test.txt\n");
-
-    if (f == NULL) //Check if file exists
-    {
-        ESP_LOGE(TAG, "Failed to open file for reading");
-        return;
-    }
-
-    char line[64];
-    fgets(line, sizeof(line), f);
-    fclose(f);
-    printf("%s\n",line);
-
     FILE* myHTML_file = fopen(filename, "r");
     printf("Opening index.html\n");
 
@@ -157,12 +143,11 @@ void read_file(char* filename)
         return;
     }
 
-    
-
     ESP_LOGI(TAG, "File Successfully opened");
-    fclose(myHTML_file);
-/*
-    Get the file size
+    //fclose(myHTML_file);
+
+    
+    /*Get the file size*/
     struct stat file_stat;
     off_t file_size;
 
@@ -177,7 +162,7 @@ void read_file(char* filename)
         file_size = 200; //(default size)
     }
 
-    Allocate memory to page_content to match size of the file
+    /*Allocate memory to page_content to match size of the file*/
     char *page_content = (char*) malloc(sizeof(char) * (file_size + 1));
     page_content[0] = '\0';
     
@@ -185,7 +170,7 @@ void read_file(char* filename)
     {
         ESP_LOGE(TAG, "Failed to allocate memory for Page Buffer");
         fclose(myHTML_file);
-        return NULL;
+        return;
     }
 
     char page_content_buff[1024]="";
@@ -197,8 +182,8 @@ void read_file(char* filename)
     }
 
     fclose(myHTML_file);
-    printf("File Content: \n %s \n", page_content);
-    return page_content;*/
+    printf("%s", page_content);
+    //return page_content;
 }
 
 /* Mock Function that prints show if component was properly linked to the main folder */
