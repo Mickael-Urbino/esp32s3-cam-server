@@ -40,6 +40,8 @@ void app_main(void)
     initialize_wifi();
     start_webserver();
 
+    ServerComponentTest();
+
     //xTaskCreatePinnedToCore(vTaskTestFreeRTOS, "Test Task", 4096, NULL, 0, NULL, 1);
     //xTaskCreatePinnedToCore(vTaskStartWebServer, "Start Webserver Task", 4096, NULL, 0, NULL, 1);
 

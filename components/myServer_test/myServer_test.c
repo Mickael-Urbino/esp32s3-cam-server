@@ -131,8 +131,16 @@ void init_littlefs(void)
 
 /* Function to read the HTML file and store its content inside a buffer */
 
-void read_file(char* filename)
+char *read_file(char* filename)
 {
+
+    FILE* myHTML_file = fopen(filename, "r");
+
+    if (myHTML_file == NULL) //Check if file exists
+    {
+        ESP_LOGE(TAG, "Failed to open file for reading");
+        return NULL;
+    }
 
     /* Get the file size*/
     struct stat file_stat;
@@ -151,32 +159,38 @@ void read_file(char* filename)
 
     /* Allocate memory to page_content to match size of the file*/
     char *page_content = (char*) malloc(sizeof(char) * (file_size + 1));
+    page_content[0] = '\0';
+    
     if (page_content == NULL)
     {
         ESP_LOGE(TAG, "Failed to allocate memory for Page Buffer");
-        exit(1);
+        fclose(myHTML_file);
+        return NULL;
     }
 
-    FILE* myHTML_file = fopen(filename, "r");
-
-    if (myHTML_file == NULL) //Check if file exists
+    char page_content_buff[1024]="";
+    
+    while (fgets(page_content_buff, sizeof(page_content), myHTML_file) != NULL) //Read through each line of the file
     {
-        ESP_LOGE(TAG, "Failed to open file for reading");
-        exit(1);
+        strcat(page_content, page_content_buff); //append content of buffer into page_content
+        //Remove /n from the end of the string (replace with 0 byte)
     }
-    /*
-    while (fgets(page_content, sizeof(page_content), myHTML_file) != NULL) //Read through each line of the file
-    {
-
-    }*/
-
-    free(page_content);
 
     fclose(myHTML_file);
+    printf("File Content: \n %s \n", page_content);
+    return page_content;
+
 }
 
 /* Mock Function that prints show if component was properly linked to the main folder */
 void ServerComponentTest(void)
 {
+    init_littlefs();
+
     printf("myServer Component was successfully linked to main.c\n");
+    char* content = read_file(INDEX_PAGE_FILENAME);
+    if (content != NULL)
+    {
+        free(content);
+    }
 }
