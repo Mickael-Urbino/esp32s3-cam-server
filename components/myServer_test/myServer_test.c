@@ -4,10 +4,10 @@
 #include "esp_log.h"                //For ESP_LOGx functions (instead of printf)
 #include "esp_http_server.h"        //For http structures, types, and functions
 #include "sys/param.h"              //For MIN() function
-#include "esp_littlefs.h"           //For File System
+#include "esp_spiffs.h"           //For File System
 #include "sys/stat.h"               //For File size calculation
 
-#define INDEX_PAGE_FILENAME             "/Front_End/index.html"
+#define INDEX_PAGE_FILENAME             "/myWebserver/index.html"
 
 static const char* TAG = "myServer";
 
@@ -104,19 +104,20 @@ void init_littlefs(void)
 {
     ESP_LOGI(TAG, "Initializing LittleFs");
 
-    esp_vfs_littlefs_conf_t littlefs_config = {
-        .base_path = "/Front_End",
+    esp_vfs_spiffs_conf_t littlefs_config = {
+        .base_path = "/myWebserver",
         .partition_label = "myWebserver",
         .format_if_mount_failed = true,
-        .dont_mount = false,
+        .max_files = 5,
+        //.dont_mount = false,
     };
 
-    error_check_littlefs_init(esp_vfs_littlefs_register(&littlefs_config));
+    error_check_littlefs_init(esp_vfs_spiffs_register(&littlefs_config));
 
     size_t total_bytes = 0;
     size_t used_bytes = 0;
 
-    esp_err_t get_littlefs_info_result = esp_littlefs_info(littlefs_config.partition_label, &total_bytes, &used_bytes);
+    esp_err_t get_littlefs_info_result = esp_spiffs_info(littlefs_config.partition_label, &total_bytes, &used_bytes);
 
     if (get_littlefs_info_result != ESP_OK)
     {
@@ -131,18 +132,38 @@ void init_littlefs(void)
 
 /* Function to read the HTML file and store its content inside a buffer */
 
-char *read_file(char* filename)
+void read_file(char* filename)
 {
 
+    FILE* f = fopen("/myWebserver/test.txt", "r");
+    printf("Opening test.txt\n");
+
+    if (f == NULL) //Check if file exists
+    {
+        ESP_LOGE(TAG, "Failed to open file for reading");
+        return;
+    }
+
+    char line[64];
+    fgets(line, sizeof(line), f);
+    fclose(f);
+    printf("%s\n",line);
+
     FILE* myHTML_file = fopen(filename, "r");
+    printf("Opening index.html\n");
 
     if (myHTML_file == NULL) //Check if file exists
     {
         ESP_LOGE(TAG, "Failed to open file for reading");
-        return NULL;
+        return;
     }
 
-    /* Get the file size*/
+    
+
+    ESP_LOGI(TAG, "File Successfully opened");
+    fclose(myHTML_file);
+/*
+    Get the file size
     struct stat file_stat;
     off_t file_size;
 
@@ -153,11 +174,11 @@ char *read_file(char* filename)
     }
     else
     {
-        ESP_LOGE(TAG, "Couldn't get file properties. Default to 1024 Bytes");
-        file_size = 1024; //(default size)
+        ESP_LOGE(TAG, "Couldn't get file properties. Default to 200 Bytes");
+        file_size = 200; //(default size)
     }
 
-    /* Allocate memory to page_content to match size of the file*/
+    Allocate memory to page_content to match size of the file
     char *page_content = (char*) malloc(sizeof(char) * (file_size + 1));
     page_content[0] = '\0';
     
@@ -178,8 +199,7 @@ char *read_file(char* filename)
 
     fclose(myHTML_file);
     printf("File Content: \n %s \n", page_content);
-    return page_content;
-
+    return page_content;*/
 }
 
 /* Mock Function that prints show if component was properly linked to the main folder */
@@ -188,9 +208,6 @@ void ServerComponentTest(void)
     init_littlefs();
 
     printf("myServer Component was successfully linked to main.c\n");
-    char* content = read_file(INDEX_PAGE_FILENAME);
-    if (content != NULL)
-    {
-        free(content);
-    }
+    read_file(INDEX_PAGE_FILENAME);
+
 }

@@ -20,7 +20,11 @@
         "freertos.h": "c",
         "esp_spiffs.h": "c",
         "esp_netif.h": "c",
-        "esp_littlefs.h": "c"
+        "esp_littlefs.h": "c",
+        "esp_flash.h": "c",
+        "cstdio": "c",
+        "fstream": "c",
+        "unistd.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }
