@@ -12,7 +12,7 @@
 static const char* TAG = "myServer";
 
 /* Function that will be called during the GET request */
- esp_err_t http_get_handler(httpd_req_t* req)
+/* esp_err_t http_get_handler(httpd_req_t* req)
  {
 
     const char header[] = "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>esp32s3-cam-server</title></head><body style=background-color:#DBF9FC><style> h1 { color: #999; font-family: sans-serif} </style> <h1>Welcome to esp32s3-cam-server</h1>";
@@ -22,7 +22,65 @@ static const char* TAG = "myServer";
     strcat(message, body);
     httpd_resp_send(req, message, HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
+ }*/
+
+ /* Function to read from file directly get handler 2 */
+esp_err_t http_get_handler2(httpd_req_t* req)
+ {
+    FILE* myHTML_file = fopen(INDEX_PAGE_FILENAME, "r");
+    ESP_LOGI(TAG,"Opening %s\n", INDEX_PAGE_FILENAME);
+
+    if (myHTML_file == NULL) //Check if file exists
+    {
+        ESP_LOGE(TAG, "Failed to open file for reading");
+        return(1);
+    }
+
+    ESP_LOGI(TAG, "File Successfully opened");
+
+    
+    /*Get the file size*/
+    struct stat file_stat;
+    off_t file_size;
+
+    if (stat(INDEX_PAGE_FILENAME, &file_stat) == 0)
+    {
+        ESP_LOGI(TAG, "File Size is: %ld Bytes", file_stat.st_size);
+        file_size = file_stat.st_size;
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Couldn't get file properties. Default to 200 Bytes");
+        file_size = 200; //(default size)
+    }
+
+    /*Allocate memory to page_content to match size of the file*/
+    char *page_content = (char*) malloc(sizeof(char) * (file_size + 1));
+    page_content[0] = '\0';
+    
+    if (page_content == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to allocate memory for Page Buffer");
+        fclose(myHTML_file);
+        return(1);
+    }
+
+    char page_content_buff[1024]="";
+    
+    while (fgets(page_content_buff, sizeof(page_content), myHTML_file) != NULL) //Read through each line of the file
+    {
+        strcat(page_content, page_content_buff); //append content of buffer into page_content
+        //Remove /n from the end of the string (replace with 0 byte) ? Might not be needed because it seems to work
+    }
+
+    fclose(myHTML_file);
+
+    httpd_resp_send(req, page_content, HTTPD_RESP_USE_STRLEN);
+    free(page_content);
+    return ESP_OK;
  }
+
+
 
  /* Function that will be called during POST request */
 esp_err_t http_post_handler(httpd_req_t* req)
@@ -46,7 +104,7 @@ esp_err_t http_post_handler(httpd_req_t* req)
 httpd_uri_t uri_get = {
     .uri        = "/server",
     .method     = HTTP_GET,
-    .handler    = http_get_handler,
+    .handler    = http_get_handler2,
     .user_ctx   = NULL
 };
 
@@ -131,20 +189,19 @@ void init_littlefs(void)
 
 /* Function to read the HTML file and store its content inside a buffer */
 
-void read_file(char* filename)
+void *read_file(char* filename)
 {
 
     FILE* myHTML_file = fopen(filename, "r");
-    printf("Opening index.html\n");
+    ESP_LOGI(TAG,"Opening %s\n", filename);
 
     if (myHTML_file == NULL) //Check if file exists
     {
         ESP_LOGE(TAG, "Failed to open file for reading");
-        return;
+        return NULL;
     }
 
     ESP_LOGI(TAG, "File Successfully opened");
-    //fclose(myHTML_file);
 
     
     /*Get the file size*/
@@ -170,7 +227,7 @@ void read_file(char* filename)
     {
         ESP_LOGE(TAG, "Failed to allocate memory for Page Buffer");
         fclose(myHTML_file);
-        return;
+        return NULL;
     }
 
     char page_content_buff[1024]="";
@@ -183,7 +240,7 @@ void read_file(char* filename)
 
     fclose(myHTML_file);
     printf("%s", page_content);
-    //return page_content;
+    return page_content;
 }
 
 /* Mock Function that prints show if component was properly linked to the main folder */
@@ -192,6 +249,14 @@ void ServerComponentTest(void)
     init_littlefs();
 
     printf("myServer Component was successfully linked to main.c\n");
-    read_file(INDEX_PAGE_FILENAME);
+    char *page_content = (char*) read_file(INDEX_PAGE_FILENAME);
+    if (page_content == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to allocated memory for Page_Content");
+        return;
+    }
+
+    
+    //free(page_content);
 
 }
