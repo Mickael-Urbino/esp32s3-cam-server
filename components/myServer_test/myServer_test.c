@@ -4,7 +4,7 @@
 #include "esp_log.h"                //For ESP_LOGx functions (instead of printf)
 #include "esp_http_server.h"        //For http structures, types, and functions
 #include "sys/param.h"              //For MIN() function
-#include "esp_spiffs.h"           //For File System
+#include "esp_littlefs.h"           //For File System
 #include "sys/stat.h"               //For File size calculation
 
 #define INDEX_PAGE_FILENAME             "/myWebserver/index.html"
@@ -104,20 +104,19 @@ void init_littlefs(void)
 {
     ESP_LOGI(TAG, "Initializing LittleFs");
 
-    esp_vfs_spiffs_conf_t littlefs_config = {
+    esp_vfs_littlefs_conf_t littlefs_config = {
         .base_path = "/myWebserver",
         .partition_label = "myWebserver",
         .format_if_mount_failed = true,
-        .max_files = 5,
-        //.dont_mount = false,
+        .dont_mount = false,
     };
 
-    error_check_littlefs_init(esp_vfs_spiffs_register(&littlefs_config));
+    error_check_littlefs_init(esp_vfs_littlefs_register(&littlefs_config));
 
     size_t total_bytes = 0;
     size_t used_bytes = 0;
 
-    esp_err_t get_littlefs_info_result = esp_spiffs_info(littlefs_config.partition_label, &total_bytes, &used_bytes);
+    esp_err_t get_littlefs_info_result = esp_littlefs_info(littlefs_config.partition_label, &total_bytes, &used_bytes);
 
     if (get_littlefs_info_result != ESP_OK)
     {
