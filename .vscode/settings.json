@@ -24,7 +24,8 @@
         "esp_flash.h": "c",
         "cstdio": "c",
         "fstream": "c",
-        "unistd.h": "c"
+        "unistd.h": "c",
+        "esp_http_server.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

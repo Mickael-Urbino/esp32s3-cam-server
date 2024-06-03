@@ -8,24 +8,14 @@
 #include "sys/stat.h"               //For File size calculation
 
 #define INDEX_PAGE_FILENAME             "/myWebserver/index.html"
+#define CSS_FILENAME                    "/myWebserver/css/styles.css"
+#define ICON_FILENAME                   "/myWebserver/icone.jpg"
 
 static const char* TAG = "myServer";
 
 /* Function that will be called during the GET request */
-/* esp_err_t http_get_handler(httpd_req_t* req)
- {
-
-    const char header[] = "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>esp32s3-cam-server</title></head><body style=background-color:#DBF9FC><style> h1 { color: #999; font-family: sans-serif} </style> <h1>Welcome to esp32s3-cam-server</h1>";
-    const char body[] = "<form action=\"http://192.168.4.1/server\" method=\"post\"><label for=\"s1\">ESP32S3-CAM-SERVER :</label><input type =\"text\" id=\"s1\" name=\"s1\" value=\"Write something here\"/><br/><button style=background-color:SpringGreen>Send</button></form></body></html>";
-    char message[512] = "";
-    strcat(message, header);
-    strcat(message, body);
-    httpd_resp_send(req, message, HTTPD_RESP_USE_STRLEN);
-    return ESP_OK;
- }*/
-
- /* Function to read from file directly get handler 2 */
-esp_err_t http_get_handler2(httpd_req_t* req)
+/* Function to read from file directly get handler */
+esp_err_t http_get_handler(httpd_req_t* req)
  {
     FILE* myHTML_file = fopen(INDEX_PAGE_FILENAME, "r");
     ESP_LOGI(TAG,"Opening %s\n", INDEX_PAGE_FILENAME);
@@ -80,6 +70,64 @@ esp_err_t http_get_handler2(httpd_req_t* req)
     return ESP_OK;
  }
 
+/* Function that will be called during the GET request */
+/* Function to read from file directly get handler 2 */
+esp_err_t http_get_handler2(httpd_req_t* req)
+ {
+    FILE* myCSS_file = fopen(CSS_FILENAME, "r");
+    ESP_LOGI(TAG,"Opening %s\n", CSS_FILENAME);
+
+    if (myCSS_file == NULL) //Check if file exists
+    {
+        ESP_LOGE(TAG, "Failed to open file for reading");
+        return(1);
+    }
+
+    ESP_LOGI(TAG, "File Successfully opened");
+
+    
+    /*Get the file size*/
+    struct stat file_stat;
+    off_t file_size;
+
+    if (stat(CSS_FILENAME, &file_stat) == 0)
+    {
+        ESP_LOGI(TAG, "File Size is: %ld Bytes", file_stat.st_size);
+        file_size = file_stat.st_size;
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Couldn't get file properties. Default to 200 Bytes");
+        file_size = 200; //(default size)
+    }
+
+    /*Allocate memory to page_content to match size of the file*/
+    char *page_content = (char*) malloc(sizeof(char) * (file_size + 1));
+    page_content[0] = '\0';
+    
+    if (page_content == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to allocate memory for Page Buffer");
+        fclose(myCSS_file);
+        return(1);
+    }
+
+    char page_content_buff[1024]="";
+    
+    while (fgets(page_content_buff, sizeof(page_content), myCSS_file) != NULL) //Read through each line of the file
+    {
+        strcat(page_content, page_content_buff); //append content of buffer into page_content
+        //Remove /n from the end of the string (replace with 0 byte) ? Might not be needed because it seems to work
+    }
+
+    fclose(myCSS_file);
+
+    httpd_resp_set_type(req, "text/css");
+
+    httpd_resp_send(req, page_content, HTTPD_RESP_USE_STRLEN);
+    free(page_content);
+    return ESP_OK;
+ }
 
 
  /* Function that will be called during POST request */
@@ -100,13 +148,23 @@ esp_err_t http_post_handler(httpd_req_t* req)
     return ESP_OK;
 }
 
-/* Structure for GET */
-httpd_uri_t uri_get = {
+/* Structure for GET /server*/
+httpd_uri_t uri_get_index = {
     .uri        = "/server",
+    .method     = HTTP_GET,
+    .handler    = http_get_handler,
+    .user_ctx   = NULL
+};
+
+/* Structure for GET style.css*/
+httpd_uri_t uri_get_css = {
+    .uri        = "/css/styles.css",
     .method     = HTTP_GET,
     .handler    = http_get_handler2,
     .user_ctx   = NULL
 };
+
+
 
 /* Structure for POST */
 httpd_uri_t uri_post = {
@@ -125,7 +183,8 @@ httpd_handle_t start_webserver(void)
 
     if (httpd_start(&server, &server_cfg) == ESP_OK)
     {
-        httpd_register_uri_handler(server, &uri_get);
+        httpd_register_uri_handler(server, &uri_get_index);
+        httpd_register_uri_handler(server, &uri_get_css);
         httpd_register_uri_handler(server, &uri_post);
     }
     return server;
