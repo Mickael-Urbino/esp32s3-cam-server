@@ -9,7 +9,7 @@
 
 #define INDEX_PAGE_FILENAME             "/myWebserver/index.html"
 #define CSS_FILENAME                    "/myWebserver/css/styles.css"
-#define ICON_FILENAME                   "/myWebserver/icone.jpg"
+#define ICONE_FILENAME                   "/myWebserver/icone.jpg"
 
 static const char* TAG = "myServer";
 
@@ -18,7 +18,7 @@ static const char* TAG = "myServer";
 esp_err_t http_get_handler(httpd_req_t* req)
  {
     FILE* myHTML_file = fopen(INDEX_PAGE_FILENAME, "r");
-    ESP_LOGI(TAG,"Opening %s\n", INDEX_PAGE_FILENAME);
+    ESP_LOGI(TAG,"Opening %s", INDEX_PAGE_FILENAME);
 
     if (myHTML_file == NULL) //Check if file exists
     {
@@ -75,7 +75,7 @@ esp_err_t http_get_handler(httpd_req_t* req)
 esp_err_t http_get_handler2(httpd_req_t* req)
  {
     FILE* myCSS_file = fopen(CSS_FILENAME, "r");
-    ESP_LOGI(TAG,"Opening %s\n", CSS_FILENAME);
+    ESP_LOGI(TAG,"Opening %s", CSS_FILENAME);
 
     if (myCSS_file == NULL) //Check if file exists
     {
@@ -129,6 +129,64 @@ esp_err_t http_get_handler2(httpd_req_t* req)
     return ESP_OK;
  }
 
+/* Function that will be called during the GET request */
+/* Function to read from file directly get handler 2 */
+esp_err_t http_get_handler3(httpd_req_t* req)
+ {
+    FILE* myJPG_file = fopen(ICONE_FILENAME, "rb");
+    ESP_LOGI(TAG,"Opening %s", ICONE_FILENAME);
+
+    if (myJPG_file == NULL) //Check if file exists
+    {
+        ESP_LOGE(TAG, "Failed to open file for reading");
+        return(1);
+    }
+
+    ESP_LOGI(TAG, "File Successfully opened");
+
+    
+    /*Get the file size*/
+    struct stat file_stat;
+    off_t file_size;
+
+    if (stat(ICONE_FILENAME, &file_stat) == 0)
+    {
+        ESP_LOGI(TAG, "File Size is: %ld Bytes", file_stat.st_size);
+        file_size = file_stat.st_size;
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Couldn't get file properties. Default to 200 Bytes");
+        file_size = 200; //(default size)
+    }
+
+    /*Allocate memory to page_content to match size of the file*/
+    char *page_content = (char*) malloc(sizeof(char) * (file_size + 1));
+    page_content[0] = '\0';
+    
+    if (page_content == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to allocate memory for Page Buffer");
+        fclose(myJPG_file);
+        return(1);
+    }
+
+    char page_content_buff[1024]="";
+    
+    while (fgets(page_content_buff, sizeof(page_content), myJPG_file) != NULL) //Read through each line of the file
+    {
+        strcat(page_content, page_content_buff); //append content of buffer into page_content
+        //Remove /n from the end of the string (replace with 0 byte) ? Might not be needed because it seems to work
+    }
+
+    fclose(myJPG_file);
+
+    httpd_resp_set_type(req, "image/jpeg");
+
+    httpd_resp_send(req, page_content, HTTPD_RESP_USE_STRLEN);
+    free(page_content);
+    return ESP_OK;
+ }
 
  /* Function that will be called during POST request */
 esp_err_t http_post_handler(httpd_req_t* req)
@@ -150,7 +208,7 @@ esp_err_t http_post_handler(httpd_req_t* req)
 
 /* Structure for GET /server*/
 httpd_uri_t uri_get_index = {
-    .uri        = "/server",
+    .uri        = "/",
     .method     = HTTP_GET,
     .handler    = http_get_handler,
     .user_ctx   = NULL
@@ -164,7 +222,13 @@ httpd_uri_t uri_get_css = {
     .user_ctx   = NULL
 };
 
-
+/* Structure for GET icone.jpg*/
+httpd_uri_t uri_get_icone = {
+    .uri        = "/icone.jpg",
+    .method     = HTTP_GET,
+    .handler    = http_get_handler3,
+    .user_ctx   = NULL
+};
 
 /* Structure for POST */
 httpd_uri_t uri_post = {
@@ -185,6 +249,7 @@ httpd_handle_t start_webserver(void)
     {
         httpd_register_uri_handler(server, &uri_get_index);
         httpd_register_uri_handler(server, &uri_get_css);
+        httpd_register_uri_handler(server, &uri_get_icone);
         httpd_register_uri_handler(server, &uri_post);
     }
     return server;
@@ -308,14 +373,14 @@ void ServerComponentTest(void)
     init_littlefs();
 
     printf("myServer Component was successfully linked to main.c\n");
+    
+    /*
     char *page_content = (char*) read_file(INDEX_PAGE_FILENAME);
     if (page_content == NULL)
     {
         ESP_LOGE(TAG, "Failed to allocated memory for Page_Content");
         return;
     }
-
-    
-    //free(page_content);
+    free(page_content);*/
 
 }
