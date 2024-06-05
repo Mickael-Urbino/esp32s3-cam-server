@@ -9,7 +9,8 @@
 
 #define INDEX_PAGE_FILENAME             "/myWebserver/index.html"
 #define CSS_FILENAME                    "/myWebserver/css/styles.css"
-#define ICONE_FILENAME                   "/myWebserver/icone.jpg"
+#define ICONE_FILENAME                  "/myWebserver/icone.png"
+#define ICONE_FILENAME2                 "/myWebserver/css/icone.jpg"
 
 static const char* TAG = "myServer";
 
@@ -139,11 +140,13 @@ esp_err_t http_get_handler3(httpd_req_t* req)
     if (myJPG_file == NULL) //Check if file exists
     {
         ESP_LOGE(TAG, "Failed to open file for reading");
-        return(1);
+        httpd_resp_send_404(req);
+        return ESP_FAIL;
     }
 
     ESP_LOGI(TAG, "File Successfully opened");
 
+    
     
     /*Get the file size*/
     struct stat file_stat;
@@ -157,36 +160,116 @@ esp_err_t http_get_handler3(httpd_req_t* req)
     else
     {
         ESP_LOGE(TAG, "Couldn't get file properties. Default to 200 Bytes");
-        file_size = 200; //(default size)
+        fclose(myJPG_file);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to get file properties");
+        return ESP_FAIL;
     }
 
     /*Allocate memory to page_content to match size of the file*/
-    char *page_content = (char*) malloc(sizeof(char) * (file_size + 1));
-    page_content[0] = '\0';
+    char *page_content = (char*) malloc(sizeof(char) * (file_size));
     
     if (page_content == NULL)
     {
         ESP_LOGE(TAG, "Failed to allocate memory for Page Buffer");
         fclose(myJPG_file);
-        return(1);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Memory allocation failed");
+        return ESP_FAIL;
+    }
+    
+    size_t quantity_read = fread(page_content, 1, file_size, myJPG_file);
+
+    ESP_LOGI(TAG,"Size of page_content: %ld \nQuantity read: %zu Bytes\n", file_size, quantity_read);
+    fclose(myJPG_file);
+
+    httpd_resp_set_type(req, "image/png");
+
+    esp_err_t send_result = httpd_resp_send(req, page_content, file_size);
+    free(page_content);
+
+    if (send_result != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to send file");
+        return ESP_FAIL;
     }
 
-    char page_content_buff[1024]="";
+    return ESP_OK;
+ }
+
+esp_err_t http_get_handler4(httpd_req_t* req)
+ {
+    FILE* myJPG_file = fopen(ICONE_FILENAME2, "rb");
+    ESP_LOGI(TAG,"Opening %s", ICONE_FILENAME2);
+
+    if (myJPG_file == NULL) //Check if file exists
+    {
+        ESP_LOGE(TAG, "Failed to open file for reading");
+        httpd_resp_send_404(req);
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "File Successfully opened");
+
     
-    while (fgets(page_content_buff, sizeof(page_content), myJPG_file) != NULL) //Read through each line of the file
+    
+    /*Get the file size*/
+    struct stat file_stat;
+    off_t file_size;
+
+    if (stat(ICONE_FILENAME2, &file_stat) == 0)
+    {
+        ESP_LOGI(TAG, "File Size is: %ld Bytes", file_stat.st_size);
+        file_size = file_stat.st_size;
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Couldn't get file properties. Default to 200 Bytes");
+        file_size = 200; //(default size)
+    }
+
+    /*Allocate memory to page_content to match size of the file*/
+    char *page_content = (char*) malloc(sizeof(char) * (file_size));
+    
+    if (page_content == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to allocate memory for Page Buffer");
+        fclose(myJPG_file);
+        return ESP_FAIL;
+    }
+
+    httpd_resp_set_hdr(req, "Content-Length", (const char*)file_size);
+    httpd_resp_set_type(req, "image/jpeg");
+
+    printf("Size JPG %s\n", (const char*)file_size);
+    
+    size_t quantity_read = fread(page_content, 1, file_size, myJPG_file);
+
+    /*
+    while (fread(page_content_buff, 1, sizeof(page_content), myJPG_file) != NULL) //Read through each line of the file
     {
         strcat(page_content, page_content_buff); //append content of buffer into page_content
         //Remove /n from the end of the string (replace with 0 byte) ? Might not be needed because it seems to work
+    }*/
+
+    printf("Size of page_content: %ld \nQuantity read: %d Bytes\n", file_size, quantity_read);
+
+    int i = 0;
+    while (file_size != 0)
+    {
+
+        printf("%d", page_content[i]);
+        i = i+1;
+        file_size = file_size -1;
     }
+    printf("\n");
+    
 
     fclose(myJPG_file);
-
-    httpd_resp_set_type(req, "image/jpeg");
 
     httpd_resp_send(req, page_content, HTTPD_RESP_USE_STRLEN);
     free(page_content);
     return ESP_OK;
  }
+
 
  /* Function that will be called during POST request */
 esp_err_t http_post_handler(httpd_req_t* req)
@@ -206,7 +289,7 @@ esp_err_t http_post_handler(httpd_req_t* req)
     return ESP_OK;
 }
 
-/* Structure for GET /server*/
+/* Structure for GET /*/
 httpd_uri_t uri_get_index = {
     .uri        = "/",
     .method     = HTTP_GET,
@@ -222,17 +305,25 @@ httpd_uri_t uri_get_css = {
     .user_ctx   = NULL
 };
 
-/* Structure for GET icone.jpg*/
+/* Structure for GET icone.png*/
 httpd_uri_t uri_get_icone = {
-    .uri        = "/icone.jpg",
+    .uri        = "/icone.png",
     .method     = HTTP_GET,
     .handler    = http_get_handler3,
     .user_ctx   = NULL
 };
 
+/* Structure for GET icone.jpg*/
+httpd_uri_t uri_get_icone2 = {
+    .uri        = "/css/icone.jpg",
+    .method     = HTTP_GET,
+    .handler    = http_get_handler4,
+    .user_ctx   = NULL
+};
+
 /* Structure for POST */
 httpd_uri_t uri_post = {
-    .uri        = "/server",
+    .uri        = "/",
     .method     = HTTP_POST,
     .handler    = http_post_handler,
     .user_ctx   = NULL
@@ -250,6 +341,7 @@ httpd_handle_t start_webserver(void)
         httpd_register_uri_handler(server, &uri_get_index);
         httpd_register_uri_handler(server, &uri_get_css);
         httpd_register_uri_handler(server, &uri_get_icone);
+        httpd_register_uri_handler(server, &uri_get_icone2);
         httpd_register_uri_handler(server, &uri_post);
     }
     return server;
