@@ -1,5 +1,6 @@
 #include "myWifi_test.h"
 #include "myServer_test.h"
+#include "myCamera_test.h"
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"      //For real time operation libraries
 #include "freertos/task.h"          //For Multitasking libraries
@@ -37,7 +38,7 @@ void vTaskStartWebServer(void *pvParameters)
 void app_main(void)
 {    
    
-
+    CameraComponentTest();
     initialize_wifi();
     ServerComponentTest();
     start_webserver();
