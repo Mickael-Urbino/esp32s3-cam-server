@@ -38,11 +38,11 @@ void vTaskStartWebServer(void *pvParameters)
 void app_main(void)
 {    
    
-    CameraComponentTest();
+    
     initialize_wifi();
     ServerComponentTest();
     start_webserver();
-
+    CameraComponentTest();
 
     //xTaskCreatePinnedToCore(vTaskTestFreeRTOS, "Test Task", 4096, NULL, 0, NULL, 1);
     //xTaskCreatePinnedToCore(vTaskStartWebServer, "Start Webserver Task", 4096, NULL, 0, NULL, 1);

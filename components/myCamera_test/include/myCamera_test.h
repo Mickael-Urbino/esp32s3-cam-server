@@ -3,7 +3,10 @@
 
 /* Camera Settings */
 
-#define OV2640_I2C_ADDRESS      0x60 //Write Address
+#define OV2640_I2C_ADDRESS      0x60            //Write Address
+#define OV2640_I2C_HZ_FREQ      400000          //400kHz
+#define OV2640_PCLK_HZ_FREQ     36000000        //36MHz
+#define OV2640_MCLK_HZ_FREQ     24000000        //24MHz
 
 /* Definition of Camera pins */
 
