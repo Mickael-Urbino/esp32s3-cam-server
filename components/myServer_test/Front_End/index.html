@@ -5,14 +5,17 @@
         <link rel="stylesheet" href="css/styles.css">
         <title>esp32s3-cam-server</title>
     </head>
-    <body>        
-        <h1>Welcome to esp32s3-cam-server</h1>
-        <img src="images/icone.jpg" alt="drone_picture" width="360" height="240">
-        <img src="images/icone.png" alt="light_weight" width="16" height="16">
+    <body>
+        <div>
+            <h1></h1>
+            <img src="images/icone.jpg" alt="drone_picture" width="360" height="240" class="center image_border">
+        </div>   
+        <div class= "zone1">
+            <p class="center_video">Video Display Area</p>        
+        </div>
         <form action="http://192.168.4.1/" method="post">
-            <label for="s1">ESP32S3-CAM-SERVER de Mickael:</label>
-            <input type ="text" id="s1" name="s1" value="Write something here"/><br/>
-            <button><b1>Send</b1></button>
+            <button class="center margin-top"><b1>START VIDEO</b1></button>
         </form>
+        <script src="scripts/main.js"></script>
     </body>
 </html>

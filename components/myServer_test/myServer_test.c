@@ -11,6 +11,7 @@
 #define CSS_FILENAME                    "/myWebserver/css/styles.css"
 #define ICONE_FILENAME                  "/myWebserver/images/icone.png"
 #define ICONE_FILENAME2                 "/myWebserver/images/icone.jpg"
+#define JS_FILENAME                     "/myWebserver/scripts/main.js"
 
 static const char* TAG = "myServer";
 
@@ -258,6 +259,66 @@ esp_err_t http_get_handler4(httpd_req_t* req)
     return ESP_OK;
  }
 
+/* Function that will be called during the GET request */
+/* Function to read from file directly get handler 5 */
+esp_err_t http_get_handler5(httpd_req_t* req)
+ {
+    FILE* myJS_file = fopen(JS_FILENAME, "r");
+    ESP_LOGI(TAG,"Opening %s", JS_FILENAME);
+
+    if (myJS_file == NULL) //Check if file exists
+    {
+        ESP_LOGE(TAG, "Failed to open file for reading");
+        return(1);
+    }
+
+    ESP_LOGI(TAG, "File Successfully opened");
+
+    
+    /*Get the file size*/
+    struct stat file_stat;
+    off_t file_size;
+
+    if (stat(JS_FILENAME, &file_stat) == 0)
+    {
+        ESP_LOGI(TAG, "File Size is: %ld Bytes", file_stat.st_size);
+        file_size = file_stat.st_size;
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Couldn't get file properties");
+        fclose(myJS_file);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to get file properties");
+        return ESP_FAIL;
+    }
+
+    /*Allocate memory to page_content to match size of the file*/
+    char *page_content = (char*) malloc(sizeof(char) * (file_size + 1));
+    page_content[0] = '\0';
+    
+    if (page_content == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to allocate memory for Page Buffer");
+        fclose(myJS_file);
+        return(1);
+    }
+
+    char page_content_buff[1024]="";
+    
+    while (fgets(page_content_buff, sizeof(page_content), myJS_file) != NULL) //Read through each line of the file
+    {
+        strcat(page_content, page_content_buff); //append content of buffer into page_content
+        //Remove /n from the end of the string (replace with 0 byte) ? Might not be needed because it seems to work
+    }
+
+    fclose(myJS_file);
+
+    httpd_resp_set_type(req, "text/javascript");
+
+    httpd_resp_send(req, page_content, HTTPD_RESP_USE_STRLEN);
+    free(page_content);
+    return ESP_OK;
+ }
 
  /* Function that will be called during POST request */
 esp_err_t http_post_handler(httpd_req_t* req)
@@ -309,6 +370,14 @@ httpd_uri_t uri_get_jpg = {
     .user_ctx   = NULL
 };
 
+/* Structure for GET main.js*/
+httpd_uri_t uri_get_js = {
+    .uri        = "/scripts/main.js",
+    .method     = HTTP_GET,
+    .handler    = http_get_handler5,
+    .user_ctx   = NULL
+};
+
 /* Structure for POST */
 httpd_uri_t uri_post = {
     .uri        = "/",
@@ -330,6 +399,7 @@ httpd_handle_t start_webserver(void)
         httpd_register_uri_handler(server, &uri_get_css);
         httpd_register_uri_handler(server, &uri_get_png);
         httpd_register_uri_handler(server, &uri_get_jpg);
+        httpd_register_uri_handler(server, &uri_get_js);
         httpd_register_uri_handler(server, &uri_post);
     }
     return server;
