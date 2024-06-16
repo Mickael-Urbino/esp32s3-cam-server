@@ -6,7 +6,7 @@
 /* Function that will be used to start webserver*/
 httpd_handle_t start_webserver(void);
 
-/* Mock Function that prints show if component was properly linked to the main folder */
-void ServerComponentTest(void);
+/* Initialize lifflefs */
+void init_littlefs(void);
 
 #endif

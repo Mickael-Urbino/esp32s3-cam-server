@@ -386,25 +386,6 @@ httpd_uri_t uri_post = {
     .user_ctx   = NULL
 };
 
-/* Function that will be used to start webserver*/
-httpd_handle_t start_webserver(void)
-{
-    httpd_config_t server_cfg = HTTPD_DEFAULT_CONFIG();
-
-    httpd_handle_t server = NULL;
-
-    if (httpd_start(&server, &server_cfg) == ESP_OK)
-    {
-        httpd_register_uri_handler(server, &uri_get_index);
-        httpd_register_uri_handler(server, &uri_get_css);
-        httpd_register_uri_handler(server, &uri_get_png);
-        httpd_register_uri_handler(server, &uri_get_jpg);
-        httpd_register_uri_handler(server, &uri_get_js);
-        httpd_register_uri_handler(server, &uri_post);
-    }
-    return server;
-}
-
 /*Handler for errors that come with littlefs refister function*/
 void error_check_littlefs_init(esp_err_t init_littlefs)
 {
@@ -461,76 +442,21 @@ void init_littlefs(void)
 
 }
 
-/* Function to read the HTML file and store its content inside a buffer */
-
-void *read_file(char* filename)
+/* Function that will be used to start webserver*/
+httpd_handle_t start_webserver(void)
 {
+    httpd_config_t server_cfg = HTTPD_DEFAULT_CONFIG();
 
-    FILE* myHTML_file = fopen(filename, "r");
-    ESP_LOGI(TAG,"Opening %s\n", filename);
+    httpd_handle_t server = NULL;
 
-    if (myHTML_file == NULL) //Check if file exists
+    if (httpd_start(&server, &server_cfg) == ESP_OK)
     {
-        ESP_LOGE(TAG, "Failed to open file for reading");
-        return NULL;
+        httpd_register_uri_handler(server, &uri_get_index);
+        httpd_register_uri_handler(server, &uri_get_css);
+        httpd_register_uri_handler(server, &uri_get_png);
+        httpd_register_uri_handler(server, &uri_get_jpg);
+        httpd_register_uri_handler(server, &uri_get_js);
+        httpd_register_uri_handler(server, &uri_post);
     }
-
-    ESP_LOGI(TAG, "File Successfully opened");
-
-    
-    /*Get the file size*/
-    struct stat file_stat;
-    off_t file_size;
-
-    if (stat(filename, &file_stat) == 0)
-    {
-        ESP_LOGI(TAG, "File Size is: %ld Bytes", file_stat.st_size);
-        file_size = file_stat.st_size;
-    }
-    else
-    {
-        ESP_LOGE(TAG, "Couldn't get file properties. Default to 200 Bytes");
-        file_size = 200; //(default size)
-    }
-
-    /*Allocate memory to page_content to match size of the file*/
-    char *page_content = (char*) malloc(sizeof(char) * (file_size + 1));
-    page_content[0] = '\0';
-    
-    if (page_content == NULL)
-    {
-        ESP_LOGE(TAG, "Failed to allocate memory for Page Buffer");
-        fclose(myHTML_file);
-        return NULL;
-    }
-
-    char page_content_buff[1024]="";
-    
-    while (fgets(page_content_buff, sizeof(page_content), myHTML_file) != NULL) //Read through each line of the file
-    {
-        strcat(page_content, page_content_buff); //append content of buffer into page_content
-        //Remove /n from the end of the string (replace with 0 byte)
-    }
-
-    fclose(myHTML_file);
-    printf("%s", page_content);
-    return page_content;
-}
-
-/* Mock Function that prints show if component was properly linked to the main folder */
-void ServerComponentTest(void)
-{
-    init_littlefs();
-
-    printf("myServer Component was successfully linked to main.c\n");
-    
-    /*
-    char *page_content = (char*) read_file(INDEX_PAGE_FILENAME);
-    if (page_content == NULL)
-    {
-        ESP_LOGE(TAG, "Failed to allocated memory for Page_Content");
-        return;
-    }
-    free(page_content);*/
-
+    return server;
 }

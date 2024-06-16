@@ -34,19 +34,28 @@ void vTaskStartWebServer(void *pvParameters)
     vTaskDelete(NULL);
 }
 
+/* Create a task to start camera capture */
+void vTaskStartCamera(void *pvParameters)
+{
+    CameraComponentTest();
+
+    for (;;)
+    {
+        //printf("Server Started..\n");
+        //vTaskDelay(pdMS_TO_TICKS(500));
+    }
+    vTaskDelete(NULL);
+}
 
 void app_main(void)
 {    
-   
-    
     initialize_wifi();
-    ServerComponentTest();
-    start_webserver();
-    CameraComponentTest();
+    init_littlefs();        //Init LittleFS for Webserver files storage
+    
+    xTaskCreatePinnedToCore(vTaskStartWebServer, "Start Webserver Task", 4096, NULL, 0, NULL, 1);
+    xTaskCreatePinnedToCore(vTaskStartCamera, "Start Camera Task", 4096, NULL, 0, NULL, 1);
 
-    //xTaskCreatePinnedToCore(vTaskTestFreeRTOS, "Test Task", 4096, NULL, 0, NULL, 1);
-    //xTaskCreatePinnedToCore(vTaskStartWebServer, "Start Webserver Task", 4096, NULL, 0, NULL, 1);
-
+    //CameraComponentTest();
     //vTaskStartScheduler(); //vTaskStartScheduler() is not needed and creates an issue here, because it is already started before task app_main is called (it is default esp-idf behavior)
     
 }
