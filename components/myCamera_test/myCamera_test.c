@@ -12,6 +12,11 @@
 #define LOW     0                   //GPIO level Low
 
 #define GPIO_OUT_PIN_SEL_TYPE_1 ((1ULL<<CAMERA_PIN_RESET) | (1ULL<<CAMERA_PIN_PWDN))    //Bit mask for type 1 selected output pins (No pull, no interrupt)
+#define PIDH_REG    0x0A
+#define PIDL_REG    0x0B
+#define MIDH_REG    0x1C
+#define MIDL_REG    0x1D
+
 
 static const char* TAG = "myCamera";
 
@@ -122,6 +127,39 @@ void error_check_mclk_get_duty(uint32_t duty, uint32_t duty_resolution)
     }  
 }    
 
+/*Get 2 bytes register value for identification (use for PID and MID)*/
+void get_2_bytes_ID(i2c_master_dev_handle_t i2c_dev_handle, uint8_t start_register)
+{
+    uint8_t read_data[2];
+    uint8_t read_buffer[1];
+    uint8_t write_buffer[1] = {start_register};
+    uint8_t new_register = write_buffer[0];
+
+    size_t data_to_read_length = sizeof(read_data);
+    size_t register_to_access_length = sizeof(write_buffer);
+
+    for (int i = 0; i < sizeof(read_data); i = i+1)
+    {
+        i2c_master_transmit_receive(i2c_dev_handle, write_buffer, register_to_access_length, read_buffer, data_to_read_length, -1);
+        new_register = new_register + 1;
+        write_buffer[0] = new_register;
+        read_data[i] = read_buffer[0];
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
+
+    switch (start_register)
+    {
+        case PIDH_REG:
+        ESP_LOGI(TAG, "Product ID: 0x%02X%02X", read_data[0], read_data[1]);
+        break;
+
+        case MIDH_REG:
+        ESP_LOGI(TAG, "Manufacturer ID: 0x%02X%02X", read_data[0], read_data[1]);
+        break;
+    }
+    
+}
+
 /* Initialize Necessary Clock (MCLK) to allow SCCB Operation (OV2640 doesn't work without this clock applied)*/
 void init_clock_mlck(uint32_t freq)
 {
@@ -181,40 +219,12 @@ void init_i2c_master(void)
     ESP_LOGI(TAG,"Probing for OV2640 Module at address 0x%02X...", device_config.device_address);
     error_check_device_probe(i2c_master_probe(i2c_bus_handle, device_config.device_address, 5), device_config.device_address);
 
-    uint8_t data_read[1];
-    uint8_t data_read_buf[2];
-    uint8_t pidh_reg[1] = {0x0A};
-    uint8_t pidl_reg[1] = {0x0B};
+    /* Reading Data from Sensor. Function Should be optimized. SCCB Protocol prevents transmission cycles of more than 3 phases 
+    For Writing: Maximum is Slave Adressing + RegisterAdressing + Write 
+    For Reading: Maximum is 2 phases. Slave Adressing + Read. It must be done after a 2-phase or 3-phase write transmission cycle*/
 
-    size_t register_size = sizeof(uint8_t);
-    size_t data_size = sizeof(data_read);
-
-    i2c_master_transmit_receive(i2c_dev_handle, pidh_reg, register_size, data_read, data_size, -1);
-    data_read_buf[0] = data_read[0];
-
-    vTaskDelay(pdMS_TO_TICKS(5));
-
-    i2c_master_transmit_receive(i2c_dev_handle, pidl_reg, register_size, data_read, data_size, -1);
-    data_read_buf[1] = data_read[0];    
-
-    ESP_LOGI(TAG, "Read register PIDH and PIDL: 0x%02X 0x%02X", data_read_buf[0], data_read_buf[1]);
-
-    uint8_t data_read2[1];
-    uint8_t data_read_buf2[2];
-    uint8_t midh_reg[1] = {0x1C};
-    uint8_t midl_reg[1] = {0x1D};
-
-    size_t data_size2 = sizeof(data_read2);
-
-    i2c_master_transmit_receive(i2c_dev_handle, midh_reg, register_size, data_read2, data_size2, -1);
-    data_read_buf2[0] = data_read2[0];
-
-    vTaskDelay(pdMS_TO_TICKS(5));
-
-    i2c_master_transmit_receive(i2c_dev_handle, midl_reg, register_size, data_read2, data_size2, -1);
-    data_read_buf2[1] = data_read2[0];    
-
-    ESP_LOGI(TAG, "Read register MIDH and MIDL: 0x%02X 0x%02X", data_read_buf2[0], data_read_buf2[1]);
+    get_2_bytes_ID(i2c_dev_handle, PIDH_REG);
+    get_2_bytes_ID(i2c_dev_handle, MIDH_REG);
     
 }
 
