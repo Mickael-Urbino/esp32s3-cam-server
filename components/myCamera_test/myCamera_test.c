@@ -20,6 +20,28 @@
 
 static const char* TAG = "myCamera";
 
+/* I2C MASTER Setting */
+i2c_master_bus_config_t bus_config = {          //I2C MASTER BUS Configuration Structure
+    .i2c_port = -1,
+    .sda_io_num = CAMERA_PIN_SDA,
+    .scl_io_num = CAMERA_PIN_SCL,
+    .clk_source = I2C_CLK_SRC_DEFAULT,
+    .glitch_ignore_cnt = 7,
+    .intr_priority = 0,
+    
+};
+
+i2c_device_config_t device_config = {           //I2C MASTER Device Configuration Structure
+    .dev_addr_length = I2C_ADDR_BIT_7,
+    .device_address = OV2640_I2C_ADDRESS,
+    .scl_speed_hz = OV2640_I2C_HZ_FREQ,
+};
+
+i2c_master_bus_handle_t i2c_bus_handle;
+i2c_master_dev_handle_t i2c_dev_handle;
+
+
+/* ERROR CHECKS */
 void error_check_new_master(esp_err_t err)
 {
     switch (err){
@@ -160,6 +182,20 @@ void get_2_bytes_ID(i2c_master_dev_handle_t i2c_dev_handle, uint8_t start_regist
     
 }
 
+/* Probe I2C line to see if 0V2640 (0x30) is connected, then try to read its PID and MID*/
+void test_ov2640_i2c_communication(void)
+{
+    ESP_LOGI(TAG,"Probing for OV2640 Module at address 0x%02X...", device_config.device_address);
+    error_check_device_probe(i2c_master_probe(i2c_bus_handle, device_config.device_address, 5), device_config.device_address);
+
+    /* Reading Data from Sensor. Function Should be optimized. SCCB Protocol prevents transmission cycles of more than 3 phases 
+    For Writing: Maximum is Slave Adressing + RegisterAdressing + Write 
+    For Reading: Maximum is 2 phases. Slave Adressing + Read. It must be done after a 2-phase or 3-phase write transmission cycle*/
+
+    get_2_bytes_ID(i2c_dev_handle, PIDH_REG); //Confirming I2C can read register by fetching PID
+    get_2_bytes_ID(i2c_dev_handle, MIDH_REG); //Confirming I2C can read register by fetching MID
+}
+
 /* Initialize Necessary Clock (MCLK) to allow SCCB Operation (OV2640 doesn't work without this clock applied)*/
 void init_clock_mlck(uint32_t freq)
 {
@@ -191,40 +227,10 @@ void init_clock_mlck(uint32_t freq)
 /* Initialize the I2C Master to communicate with the Camera Sensor OV2640 */
 void init_i2c_master(void)
 {
-    /* I2C MASTER BUS Configuration Structure */
-    i2c_master_bus_config_t bus_config = {
-        .i2c_port = -1,
-        .sda_io_num = CAMERA_PIN_SDA,
-        .scl_io_num = CAMERA_PIN_SCL,
-        .clk_source = I2C_CLK_SRC_DEFAULT,
-        .glitch_ignore_cnt = 7,
-        .intr_priority = 0,
-        
-    };
-
-    /* I2C MASTER Device Configuration Structure */
-    i2c_device_config_t device_config = {
-        .dev_addr_length = I2C_ADDR_BIT_7,
-        .device_address = OV2640_I2C_ADDRESS,
-        .scl_speed_hz = OV2640_I2C_HZ_FREQ,
-    };
-
-    i2c_master_bus_handle_t i2c_bus_handle;
-    i2c_master_dev_handle_t i2c_dev_handle;
 
     ESP_LOGI(TAG,"Initializing I2C");
     error_check_new_master(i2c_new_master_bus(&bus_config, &i2c_bus_handle));
     error_check_add_device(i2c_master_bus_add_device(i2c_bus_handle, &device_config, &i2c_dev_handle));
-
-    ESP_LOGI(TAG,"Probing for OV2640 Module at address 0x%02X...", device_config.device_address);
-    error_check_device_probe(i2c_master_probe(i2c_bus_handle, device_config.device_address, 5), device_config.device_address);
-
-    /* Reading Data from Sensor. Function Should be optimized. SCCB Protocol prevents transmission cycles of more than 3 phases 
-    For Writing: Maximum is Slave Adressing + RegisterAdressing + Write 
-    For Reading: Maximum is 2 phases. Slave Adressing + Read. It must be done after a 2-phase or 3-phase write transmission cycle*/
-
-    get_2_bytes_ID(i2c_dev_handle, PIDH_REG);
-    get_2_bytes_ID(i2c_dev_handle, MIDH_REG);
     
 }
 
@@ -254,4 +260,5 @@ void CameraComponentTest(void)
     init_clock_mlck(OV2640_MCLK_HZ_FREQ);
 
     init_i2c_master();
+    test_ov2640_i2c_communication();
 }
