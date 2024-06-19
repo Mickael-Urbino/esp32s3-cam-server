@@ -11,14 +11,98 @@
 #define HIGH    1                   //GPIO level High
 #define LOW     0                   //GPIO level Low
 
-#define GPIO_OUT_PIN_SEL_TYPE_1 ((1ULL<<CAMERA_PIN_RESET) | (1ULL<<CAMERA_PIN_PWDN))    //Bit mask for type 1 selected output pins (No pull, no interrupt)
-#define PIDH_REG    0x0A
-#define PIDL_REG    0x0B
-#define MIDH_REG    0x1C
-#define MIDL_REG    0x1D
+#define  SELECT_DSP_BANK     0x00
+#define  SELECT_SENSOR_BANK  0x01
 
+#define GPIO_OUT_PIN_SEL_TYPE_1 ((1ULL<<CAMERA_PIN_RESET) | (1ULL<<CAMERA_PIN_PWDN))    //Bit mask for type 1 selected output pins (No pull, no interrupt)
 
 static const char* TAG = "myCamera";
+
+uint8_t dsp_bank[] = {
+    R_BYPASS_REG,
+    Q_SCALE_REG,
+    CTRLI_REG,   
+    HSIZE_REG,
+    VSIZE_REG,
+    XOFFL_REG,
+    YOFFL_REG,
+    VHYX_REG,
+    DPRP_REG,
+    TEST_REG,
+    ZMOW_REG,
+    ZMOH_REG,
+    ZMHH_REG,
+    BPADDR_REG,
+    BPDATA_REG,
+    CTRL2_REG,
+    CTRL3_REG,
+    SIZEL_REG,
+    HSIZE8_REG,
+    VSIZE8_REG,
+    CTRL0_REG,
+    CTRL1_REG,
+    R_DVP_SP_REG,
+    IMAGE_MODE_REG,
+    RESET_REG,
+    REGED_REG,
+    MS_SP_REG,
+    SS_ID_REG,
+    SS_CTRL_REG,
+    MC_BIST_REG,
+    MC_AL_REG,
+    MC_AH_REG,
+    MC_D_REG,
+    P_CMD_REG,
+    P_STATUS_REG,
+    RA_DLMT_REG,
+};
+uint8_t sensor_bank[] = {
+    GAIN_REG,
+    COM1_REG,
+    REG04_REG,
+    REG08_REG,
+    COM2_REG,
+    PIDH_REG,
+    PIDL_REG,
+    COM3_REG,
+    AEC_REG,
+    CLKRC_REG,
+    COM7_REG,
+    COM8_REG,
+    COM9_REG,
+    COM10_REG,
+    HREFST_REG,
+    HREFEND_REG,
+    VSTRT_REG,
+    VEND_REG,
+    MIDH_REG,
+    MIDL_REG,
+    AEW_REG,
+    AEB_REG,
+    VV_REG,
+    REG2A_REG,
+    FRARL_REG,
+    ADDVSL_REG,
+    ADDVSH_REG,
+    YAVG_REG,
+    REG32_REG,
+    ARCOM2_REG,
+    REG45_REG,
+    FLL_REG,
+    FLH_REG,
+    COM19_REG,
+    ZOOMS_REG,
+    COM22_REG,
+    COM25_REG,
+    BD50_REG,
+    BD60_REG,
+    REG5D_REG,
+    REG5E_REG,
+    REG5F_REG,
+    REG60_REG,
+    HISTO_LOW_REG,
+    HISTO_HIGH_REG,
+};
 
 /* I2C MASTER Setting */
 i2c_master_bus_config_t bus_config = {          //I2C MASTER BUS Configuration Structure
@@ -234,6 +318,53 @@ void init_i2c_master(void)
     
 }
 
+void read_ov2640_register(uint8_t *register_bank, uint8_t bank_select)
+{
+    uint8_t register_and_data[2] = {RA_DLMT_REG};
+    size_t size = 0;
+
+    switch (bank_select)
+    {
+        case SELECT_DSP_BANK:
+        register_and_data[1] = 0x00;
+        ESP_LOGI(TAG, "Reading DSP Bank Registers");
+        i2c_master_transmit(i2c_dev_handle, register_and_data, (sizeof(uint8_t) + 1), 5); //Register Address to write to + Set Proper Value to 0xFF to access DSP Bank register in one transaction
+        size = 36;
+        break;
+
+        case SELECT_SENSOR_BANK:
+        register_and_data[1] = 0x01;
+        ESP_LOGI(TAG, "Reading Sensor Bank Registers");
+        i2c_master_transmit(i2c_dev_handle, register_and_data, (sizeof(uint8_t) + 1), 5); //Register Address to write to + Set Proper Value to 0xFF to access Sensor Bank register in one transaction
+        size = 45;
+        break;
+
+        default:
+        ESP_LOGE(TAG, "Can't read register. Invalid register bank parameter");
+        break;
+    }
+    
+
+    ESP_LOGI(TAG, "Struct size = %u", size);
+
+    uint8_t read_data[size];
+    uint8_t read_buffer[1];
+
+    uint8_t write_buffer[1] = {register_bank[0]};
+
+
+    for (int i = 0; i < size; i = i+1)
+    {
+        write_buffer[0] = register_bank[i];
+        i2c_master_transmit_receive(i2c_dev_handle, write_buffer, sizeof(uint8_t), read_buffer, sizeof(uint8_t), 5);
+        read_data[i] = read_buffer[0];
+        ESP_LOGI(TAG, "Register %02X value: %02X", register_bank[i], read_data[i]);
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
+
+    size = 0;
+}
+
 void CameraComponentTest(void)
 {
     ESP_LOGI(TAG, "Camera component successfully linked to main.c");
@@ -261,4 +392,8 @@ void CameraComponentTest(void)
 
     init_i2c_master();
     test_ov2640_i2c_communication();
+
+    read_ov2640_register(dsp_bank, SELECT_DSP_BANK);
+    vTaskDelay(pdMS_TO_TICKS(5));
+    read_ov2640_register(sensor_bank, SELECT_SENSOR_BANK);
 }
