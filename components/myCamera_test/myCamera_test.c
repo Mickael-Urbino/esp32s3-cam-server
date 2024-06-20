@@ -18,6 +18,7 @@
 
 static const char* TAG = "myCamera";
 
+/* Define DSP_BANK and SENSOR_BANK Register names + Size of the array containing them */
 uint8_t dsp_bank[] = {
     R_BYPASS_REG,
     Q_SCALE_REG,
@@ -103,6 +104,10 @@ uint8_t sensor_bank[] = {
     HISTO_LOW_REG,
     HISTO_HIGH_REG,
 };
+
+size_t size_dsp_bank = sizeof(dsp_bank)/sizeof(dsp_bank[0]); 
+size_t size_sensor_bank = sizeof(sensor_bank)/sizeof(sensor_bank[0]);
+
 
 /* I2C MASTER Setting */
 i2c_master_bus_config_t bus_config = {          //I2C MASTER BUS Configuration Structure
@@ -233,18 +238,74 @@ void error_check_mclk_get_duty(uint32_t duty, uint32_t duty_resolution)
     }  
 }    
 
+/* 3-Phase SCCB Transaction to READ value from selected register. (SCCB supposedly don't allow for more)*/
+uint8_t sccb_read_register(i2c_master_dev_handle_t i2c_dev_handle, uint8_t register_address)
+{
+    uint8_t read_buffer[1];
+    uint8_t write_buffer[1] = {register_address};
+    size_t byte = sizeof(uint8_t);
+
+    esp_err_t err = i2c_master_transmit_receive(i2c_dev_handle, write_buffer, byte, read_buffer, byte, 5);
+
+    if (err != ESP_OK)
+    {
+        switch (err)
+        {
+            case ESP_ERR_INVALID_ARG:
+            ESP_LOGE(TAG, "I2C Master transmit parameter invalid" );
+            break;
+
+            case ESP_ERR_TIMEOUT:
+            ESP_LOGE(TAG, "Operation Timeout (Larger than xfer_timeout_ms), because the bus is busy or hardware crash" );
+            break;
+        }
+        return 0;
+    }
+
+    return read_buffer[0];
+}
+
+/* 3-Phase SCCB Transaction to WRITE value into selected register. (SCCB supposedly don't allow for more)*/
+void sccb_write_register(i2c_master_dev_handle_t i2c_dev_handle, uint8_t register_address, uint8_t register_data)
+{
+    uint8_t write_buffer[2] = {register_address, register_data};
+    size_t byte = sizeof(uint8_t);
+
+    esp_err_t err = i2c_master_transmit(i2c_dev_handle, write_buffer, 2*byte, 5);
+
+    if (err != ESP_OK)
+    {
+        switch (err)
+        {
+            case ESP_ERR_INVALID_ARG:
+            ESP_LOGE(TAG, "I2C Master transmit parameter invalid" );
+            break;
+
+            case ESP_ERR_TIMEOUT:
+            ESP_LOGE(TAG, "Operation Timeout (Larger than xfer_timeout_ms), because the bus is busy or hardware crash" );
+            break;
+        }
+        return 0;
+    }
+
+}
+
 /*Get 2 bytes register value for identification (use for PID and MID)*/
 void get_2_bytes_ID(i2c_master_dev_handle_t i2c_dev_handle, uint8_t start_register)
 {
     uint8_t read_data[2];
+
+    read_data[0] = sccb_read_register(i2c_dev_handle, start_register);
+    read_data[1] = sccb_read_register(i2c_dev_handle, start_register + 1);
+/*
     uint8_t read_buffer[1];
     uint8_t write_buffer[1] = {start_register};
     uint8_t new_register = write_buffer[0];
 
-    size_t data_to_read_length = sizeof(read_data);
-    size_t register_to_access_length = sizeof(write_buffer);
+    size_t data_to_read_length = sizeof(read_data)/sizeof(read_data[0]);
+    size_t register_to_access_length = sizeof(write_buffer)/sizeof(write_buffer[0]);
 
-    for (int i = 0; i < sizeof(read_data); i = i+1)
+    for (int i = 0; i < data_to_read_length; i = i+1)
     {
         i2c_master_transmit_receive(i2c_dev_handle, write_buffer, register_to_access_length, read_buffer, data_to_read_length, -1);
         new_register = new_register + 1;
@@ -252,7 +313,7 @@ void get_2_bytes_ID(i2c_master_dev_handle_t i2c_dev_handle, uint8_t start_regist
         read_data[i] = read_buffer[0];
         vTaskDelay(pdMS_TO_TICKS(5));
     }
-
+*/
     switch (start_register)
     {
         case PIDH_REG:
@@ -329,21 +390,20 @@ void read_ov2640_register(uint8_t *register_bank, uint8_t bank_select)
         register_and_data[1] = 0x00;
         ESP_LOGI(TAG, "Reading DSP Bank Registers");
         i2c_master_transmit(i2c_dev_handle, register_and_data, (sizeof(uint8_t) + 1), 5); //Register Address to write to + Set Proper Value to 0xFF to access DSP Bank register in one transaction
-        size = 36;
+        size = size_dsp_bank;
         break;
 
         case SELECT_SENSOR_BANK:
         register_and_data[1] = 0x01;
         ESP_LOGI(TAG, "Reading Sensor Bank Registers");
         i2c_master_transmit(i2c_dev_handle, register_and_data, (sizeof(uint8_t) + 1), 5); //Register Address to write to + Set Proper Value to 0xFF to access Sensor Bank register in one transaction
-        size = 45;
+        size = size_sensor_bank;
         break;
 
         default:
         ESP_LOGE(TAG, "Can't read register. Invalid register bank parameter");
         break;
-    }
-    
+    } 
 
     ESP_LOGI(TAG, "Struct size = %u", size);
 
@@ -362,7 +422,8 @@ void read_ov2640_register(uint8_t *register_bank, uint8_t bank_select)
         vTaskDelay(pdMS_TO_TICKS(5));
     }
 
-    size = 0;
+    i2c_master_transmit_receive(i2c_dev_handle, (uint8_t*)RA_DLMT_REG, sizeof(uint8_t), read_buffer, sizeof(uint8_t), 5);
+    ESP_LOGI(TAG, " Bank Select Register Value: %02X", read_buffer[0]);
 }
 
 void CameraComponentTest(void)
