@@ -285,7 +285,7 @@ void sccb_write_register(i2c_master_dev_handle_t i2c_dev_handle, uint8_t registe
             ESP_LOGE(TAG, "Operation Timeout (Larger than xfer_timeout_ms), because the bus is busy or hardware crash" );
             break;
         }
-        return 0;
+        return;
     }
 
 }
@@ -297,23 +297,7 @@ void get_2_bytes_ID(i2c_master_dev_handle_t i2c_dev_handle, uint8_t start_regist
 
     read_data[0] = sccb_read_register(i2c_dev_handle, start_register);
     read_data[1] = sccb_read_register(i2c_dev_handle, start_register + 1);
-/*
-    uint8_t read_buffer[1];
-    uint8_t write_buffer[1] = {start_register};
-    uint8_t new_register = write_buffer[0];
 
-    size_t data_to_read_length = sizeof(read_data)/sizeof(read_data[0]);
-    size_t register_to_access_length = sizeof(write_buffer)/sizeof(write_buffer[0]);
-
-    for (int i = 0; i < data_to_read_length; i = i+1)
-    {
-        i2c_master_transmit_receive(i2c_dev_handle, write_buffer, register_to_access_length, read_buffer, data_to_read_length, -1);
-        new_register = new_register + 1;
-        write_buffer[0] = new_register;
-        read_data[i] = read_buffer[0];
-        vTaskDelay(pdMS_TO_TICKS(5));
-    }
-*/
     switch (start_register)
     {
         case PIDH_REG:
@@ -379,6 +363,7 @@ void init_i2c_master(void)
     
 }
 
+/* Real all registers of OV2640 to get an overview of the config*/
 void read_ov2640_register(uint8_t *register_bank, uint8_t bank_select)
 {
     uint8_t register_and_data[2] = {RA_DLMT_REG};
@@ -422,9 +407,69 @@ void read_ov2640_register(uint8_t *register_bank, uint8_t bank_select)
         vTaskDelay(pdMS_TO_TICKS(5));
     }
 
-    i2c_master_transmit_receive(i2c_dev_handle, (uint8_t*)RA_DLMT_REG, sizeof(uint8_t), read_buffer, sizeof(uint8_t), 5);
-    ESP_LOGI(TAG, " Bank Select Register Value: %02X", read_buffer[0]);
+    read_buffer[0] = sccb_read_register(i2c_dev_handle, RA_DLMT_REG);
+    
+    ESP_LOGI(TAG, "Bank Select Register Value: %02X", read_buffer[0]);
 }
+
+/* Get Automatic Gain Control value */
+void ov2640_get_agc_value(void)
+{
+    uint8_t agc_value = sccb_read_register(i2c_dev_handle, GAIN_REG);
+    ESP_LOGI(TAG, "Automatic Gain Control is set to 0x%02X", agc_value);
+
+    uint8_t bit7 = (agc_value & 0x80) >> 7; //is gain_value bit 7 = 1 or 0? then shift it 7 times to the right to use it as an easier binary value for later calculation
+    uint8_t bit6 = (agc_value & 0x40) >> 6;
+    uint8_t bit5 = (agc_value & 0x20) >> 5;
+    uint8_t bit4 = (agc_value & 0x10) >> 4;
+    uint8_t bit3_0 = agc_value & 0x0F;
+
+    float gain = (bit7 + 1) * (bit6 + 1) * (bit5 + 1) * (bit4 + 1) * (1 + (((float)bit3_0)/16)); //Value when 0xFF should be 32 but its 31, to investigate
+    int gain_int = (int)(gain * 10000); //To display 4 decimals
+
+    ESP_LOGI(TAG, "Automatic Gain Control is set to %i.%04i", (gain_int/10000), gain_int % 10000);
+
+}
+
+/*Set Gain Control into manual mode and set a value (and disable Automatic Image Brightness adjustments)*/
+void ov2640_set_manual_agc_value(uint8_t gain_value)//gain_value range is 0-255, AGC range is 1-32
+{
+    uint8_t com8_register_value = sccb_read_register(i2c_dev_handle, COM8_REG);
+    
+
+    ESP_LOGI(TAG, "COM8 register value before write: 0x%02X", com8_register_value);
+    sccb_write_register(i2c_dev_handle, COM8_REG, (com8_register_value &~ 0x04)); //set manual gain control
+    com8_register_value = sccb_read_register(i2c_dev_handle, COM8_REG);
+    uint8_t com8_agc_bit2 = (com8_register_value & 0x04) >> 1;
+
+    ESP_LOGI(TAG, "COM8 register value after write: 0x%02X", com8_register_value);
+
+    if (com8_agc_bit2 == 0)
+    {
+        ESP_LOGI(TAG, "Setting AGC value");
+        sccb_write_register(i2c_dev_handle, GAIN_REG, gain_value);
+        ov2640_get_agc_value();
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Manual Gain Control is disabled");
+    }    
+}
+
+/* Set Automatic Gain Control */
+void ov2640_enable_agc(void)
+{
+    uint8_t com8_register_value = sccb_read_register(i2c_dev_handle, COM8_REG);
+    ESP_LOGI(TAG, "Enable AGC Read COM8 before writing 0x%02X", com8_register_value);
+    sccb_write_register(i2c_dev_handle, COM8_REG, (com8_register_value | 0x04)); //set automatic gain control
+    vTaskDelay(pdMS_TO_TICKS(200));
+    com8_register_value = sccb_read_register(i2c_dev_handle, COM8_REG);
+    ESP_LOGI(TAG, "Enable AGC Read COM8 after writing 0x%02X", com8_register_value);
+    
+
+    ov2640_get_agc_value();
+}
+
 
 void CameraComponentTest(void)
 {
@@ -457,4 +502,9 @@ void CameraComponentTest(void)
     read_ov2640_register(dsp_bank, SELECT_DSP_BANK);
     vTaskDelay(pdMS_TO_TICKS(5));
     read_ov2640_register(sensor_bank, SELECT_SENSOR_BANK);
+
+    ov2640_enable_agc();
+    ov2640_get_agc_value();
+    ov2640_set_manual_agc_value(255);
+    ov2640_enable_agc();
 }
