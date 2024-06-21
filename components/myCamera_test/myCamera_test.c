@@ -424,7 +424,7 @@ void ov2640_get_agc_value(void)
     uint8_t bit4 = (agc_value & 0x10) >> 4;
     uint8_t bit3_0 = agc_value & 0x0F;
 
-    float gain = (bit7 + 1) * (bit6 + 1) * (bit5 + 1) * (bit4 + 1) * (1 + (((float)bit3_0)/16)); //Value when 0xFF should be 32 but its 31, to investigate
+    float gain = (bit7 + 1) * (bit6 + 1) * (bit5 + 1) * (bit4 + 1) * (1 + (((float)bit3_0)/16)); //maximum value is 16*1.9375 = 31
     int gain_int = (int)(gain * 10000); //To display 4 decimals
 
     ESP_LOGI(TAG, "Automatic Gain Control is set to %i.%04i", (gain_int/10000), gain_int % 10000);
@@ -432,7 +432,7 @@ void ov2640_get_agc_value(void)
 }
 
 /*Set Gain Control into manual mode and set a value (and disable Automatic Image Brightness adjustments)*/
-void ov2640_set_manual_agc_value(uint8_t gain_value)//gain_value range is 0-255, AGC range is 1-32
+void ov2640_set_manual_agc_value(uint8_t gain_value)//gain_value range is 0-255, AGC range is 1-31
 {
     uint8_t com8_register_value = sccb_read_register(i2c_dev_handle, COM8_REG);
     
@@ -505,6 +505,6 @@ void CameraComponentTest(void)
 
     ov2640_enable_agc();
     ov2640_get_agc_value();
-    ov2640_set_manual_agc_value(255);
+    ov2640_set_manual_agc_value(253);
     ov2640_enable_agc();
 }
