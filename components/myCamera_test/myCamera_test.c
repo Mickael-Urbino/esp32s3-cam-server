@@ -10,6 +10,8 @@
 
 #define HIGH    1                   //GPIO level High
 #define LOW     0                   //GPIO level Low
+#define ON      1                   //Functionality is ON
+#define OFF     0                   //Functionality is OFF
 
 #define  SELECT_DSP_BANK     0x00
 #define  SELECT_SENSOR_BANK  0x01
@@ -416,7 +418,7 @@ void read_ov2640_register(uint8_t *register_bank, uint8_t bank_select)
 void ov2640_get_agc_value(void)
 {
     uint8_t agc_value = sccb_read_register(i2c_dev_handle, GAIN_REG);
-    ESP_LOGI(TAG, "Automatic Gain Control is set to 0x%02X", agc_value);
+    //ESP_LOGI(TAG, "Automatic Gain Control is set to 0x%02X", agc_value);
 
     uint8_t bit7 = (agc_value & 0x80) >> 7; //is gain_value bit 7 = 1 or 0? then shift it 7 times to the right to use it as an easier binary value for later calculation
     uint8_t bit6 = (agc_value & 0x40) >> 6;
@@ -427,22 +429,18 @@ void ov2640_get_agc_value(void)
     float gain = (bit7 + 1) * (bit6 + 1) * (bit5 + 1) * (bit4 + 1) * (1 + (((float)bit3_0)/16)); //maximum value is 16*1.9375 = 31
     int gain_int = (int)(gain * 10000); //To display 4 decimals
 
-    ESP_LOGI(TAG, "Automatic Gain Control is set to %i.%04i", (gain_int/10000), gain_int % 10000);
+    ESP_LOGI(TAG, "Gain Control value: %i.%04i", (gain_int/10000), gain_int % 10000);
 
 }
 
 /*Set Gain Control into manual mode and set a value (and disable Automatic Image Brightness adjustments)*/
 void ov2640_set_manual_agc_value(uint8_t gain_value)//gain_value range is 0-255, AGC range is 1-31
 {
-    uint8_t com8_register_value = sccb_read_register(i2c_dev_handle, COM8_REG);
-    
-
-    ESP_LOGI(TAG, "COM8 register value before write: 0x%02X", com8_register_value);
+    uint8_t com8_register_value = sccb_read_register(i2c_dev_handle, COM8_REG);    
     sccb_write_register(i2c_dev_handle, COM8_REG, (com8_register_value &~ 0x04)); //set manual gain control
+
     com8_register_value = sccb_read_register(i2c_dev_handle, COM8_REG);
     uint8_t com8_agc_bit2 = (com8_register_value & 0x04) >> 1;
-
-    ESP_LOGI(TAG, "COM8 register value after write: 0x%02X", com8_register_value);
 
     if (com8_agc_bit2 == 0)
     {
@@ -456,18 +454,39 @@ void ov2640_set_manual_agc_value(uint8_t gain_value)//gain_value range is 0-255,
     }    
 }
 
-/* Set Automatic Gain Control */
+/* Enable Automatic Gain Control */
 void ov2640_enable_agc(void)
 {
     uint8_t com8_register_value = sccb_read_register(i2c_dev_handle, COM8_REG);
-    ESP_LOGI(TAG, "Enable AGC Read COM8 before writing 0x%02X", com8_register_value);
     sccb_write_register(i2c_dev_handle, COM8_REG, (com8_register_value | 0x04)); //set automatic gain control
     vTaskDelay(pdMS_TO_TICKS(200));
-    com8_register_value = sccb_read_register(i2c_dev_handle, COM8_REG);
-    ESP_LOGI(TAG, "Enable AGC Read COM8 after writing 0x%02X", com8_register_value);
-    
 
+    com8_register_value = sccb_read_register(i2c_dev_handle, COM8_REG);
+    uint8_t com8_agc_bit2 = (com8_register_value & 0x04) >> 2;
+
+    if (com8_agc_bit2 != 1)
+    {
+        ESP_LOGE(TAG, "Failed to enable Automatic Gain Control");
+    }
     ov2640_get_agc_value();
+}
+
+void ov2640_hflip(uint8_t state)//Flip image Horizontally or unflip. State = ON or OFF
+{
+    uint8_t reg04_register_value = sccb_read_register(i2c_dev_handle, REG04_REG);
+    sccb_write_register(i2c_dev_handle, REG04_REG, ((reg04_register_value & ~REG04_HORIZONTAL_MIRROR_MASK) | ((state << REG04_HORIZONTAL_MIRROR_POS) & REG04_HORIZONTAL_MIRROR_MASK)));
+
+    reg04_register_value = sccb_read_register(i2c_dev_handle, REG04_REG);
+    ESP_LOGI(TAG, "REG04 value: 0x%02X", reg04_register_value);
+}
+
+void ov2640_vflip(uint8_t state)//Flip image Vertically or unflip. State = ON or OFF
+{
+    uint8_t reg04_register_value = sccb_read_register(i2c_dev_handle, REG04_REG);
+    sccb_write_register(i2c_dev_handle, REG04_REG, ((reg04_register_value & ~REG04_VERTICAL_FLIP_MASK) | ((state << REG04_VERTICAL_FLIP_POS) & REG04_VERTICAL_FLIP_MASK)));
+
+    reg04_register_value = sccb_read_register(i2c_dev_handle, REG04_REG);
+    ESP_LOGI(TAG, "REG04 value: 0x%02X", reg04_register_value);
 }
 
 
@@ -502,9 +521,9 @@ void CameraComponentTest(void)
     read_ov2640_register(dsp_bank, SELECT_DSP_BANK);
     vTaskDelay(pdMS_TO_TICKS(5));
     read_ov2640_register(sensor_bank, SELECT_SENSOR_BANK);
-
-    ov2640_enable_agc();
     ov2640_get_agc_value();
-    ov2640_set_manual_agc_value(253);
-    ov2640_enable_agc();
+
+    ov2640_hflip(ON);
+    vTaskDelay(pdMS_TO_TICKS(5));
+    ov2640_hflip(OFF);
 }

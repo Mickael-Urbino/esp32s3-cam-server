@@ -122,8 +122,34 @@
 #define HISTO_LOW_REG           0x61
 #define HISTO_HIGH_REG          0x62
 
+/* Bit Position insie REG04_REG */
+#define REG04_HORIZONTAL_MIRROR_POS     7 //Bit 7: Horizontal Mirror
+#define REG04_VERTICAL_FLIP_POS         6 //Bit 6: Vertical Flip
+#define REG04_VREF_BIT0_POS             4 //Bit 4: VREF bit 0
+#define REG04_HREF_BIT0_POS             3 //Bit 3: HREF bit 0
+#define REG04_AEC_BIT0_1_POS            0 //Bits [1:0] : AEC bits [1:0]
+
+/* BitMask for REG04_REG bits */
+#define REG04_HORIZONTAL_MIRROR_MASK     (1UL << REG04_HORIZONTAL_MIRROR_POS)
+#define REG04_VERTICAL_FLIP_MASK         (1UL << REG04_VERTICAL_FLIP_POS)
+#define REG04_VREF_BIT0_MASK             (1UL << REG04_VREF_BIT0_POS)
+#define REG04_HREF_BIT0_MASK             (1UL << REG04_HREF_BIT0_POS)
+#define REG04_AEC_BIT0_1_MASK            (0x03 << REG04_AEC_BIT0_1_POS)
+
+
+
 
 void vTaskStartCamera(void *pvParameters);
+
+/* Get Automatic Gain Control value */
+void ov2640_get_agc_value(void);
+
+/*Set Gain Control into manual mode and set a value (and disable Automatic Image Brightness adjustments)*/
+void ov2640_set_manual_agc_value(uint8_t gain_value);//gain_value range is 0-255, AGC range is 1-31
+
+/* Set Automatic Gain Control */
+void ov2640_enable_agc(void);
+
 void CameraComponentTest(void);
 
 
