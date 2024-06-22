@@ -471,22 +471,20 @@ void ov2640_enable_agc(void)
     ov2640_get_agc_value();
 }
 
+/* Horizontal image flip*/
 void ov2640_hflip(uint8_t state)//Flip image Horizontally or unflip. State = ON or OFF
 {
     uint8_t reg04_register_value = sccb_read_register(i2c_dev_handle, REG04_REG);
     sccb_write_register(i2c_dev_handle, REG04_REG, ((reg04_register_value & ~REG04_HORIZONTAL_MIRROR_MASK) | ((state << REG04_HORIZONTAL_MIRROR_POS) & REG04_HORIZONTAL_MIRROR_MASK)));
 
-    reg04_register_value = sccb_read_register(i2c_dev_handle, REG04_REG);
-    ESP_LOGI(TAG, "REG04 value: 0x%02X", reg04_register_value);
 }
 
+/* Vertical Image flip*/
 void ov2640_vflip(uint8_t state)//Flip image Vertically or unflip. State = ON or OFF
 {
     uint8_t reg04_register_value = sccb_read_register(i2c_dev_handle, REG04_REG);
     sccb_write_register(i2c_dev_handle, REG04_REG, ((reg04_register_value & ~REG04_VERTICAL_FLIP_MASK) | ((state << REG04_VERTICAL_FLIP_POS) & REG04_VERTICAL_FLIP_MASK)));
 
-    reg04_register_value = sccb_read_register(i2c_dev_handle, REG04_REG);
-    ESP_LOGI(TAG, "REG04 value: 0x%02X", reg04_register_value);
 }
 
 
