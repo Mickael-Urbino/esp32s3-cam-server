@@ -3,10 +3,12 @@
 
 /* Camera Settings */
 
-#define OV2640_I2C_ADDRESS      0x30            //7-bit Address. Write is 0x60 and read is 0x61 
-#define OV2640_I2C_HZ_FREQ      100000          //100kHz
-#define OV2640_PCLK_HZ_FREQ     36000000        //36MHz
-#define OV2640_MCLK_HZ_FREQ     16000000        //24MHz is to much for esp32-S3, max is 20MHz. OV2640 range 6MHz-20MHz. Try Using 16MHz
+#define OV2640_I2C_ADDRESS      0x30                    //7-bit Address. Write is 0x60 and read is 0x61 
+#define OV2640_I2C_HZ_FREQ      100000                  //100kHz
+#define OV2640_PCLK_HZ_FREQ     36000000                //36MHz
+#define OV2640_MCLK_HZ_FREQ     16000000                //24MHz is to much for esp32-S3, max is 20MHz. OV2640 range 6MHz-20MHz. Try Using 16MHz
+#define PIXEL_PERIOD            62.5                   //62.5ns
+#define TLINE                   (1922 * PIXEL_PERIOD)
 
 /* Definition of Camera pins */
 
@@ -122,24 +124,54 @@
 #define HISTO_LOW_REG           0x61
 #define HISTO_HIGH_REG          0x62
 
-/* Bit Position insie REG04_REG */
-#define REG04_HORIZONTAL_MIRROR_POS     7 //Bit 7: Horizontal Mirror
-#define REG04_VERTICAL_FLIP_POS         6 //Bit 6: Vertical Flip
-#define REG04_VREF_BIT0_POS             4 //Bit 4: VREF bit 0
-#define REG04_HREF_BIT0_POS             3 //Bit 3: HREF bit 0
-#define REG04_AEC_BIT0_1_POS            0 //Bits [1:0] : AEC bits [1:0]
+/* Bit Position inside REG04_REG */
+#define REG04_REG_HORIZONTAL_MIRROR_POS     7 //Bit 7: Horizontal Mirror
+#define REG04_REG_VERTICAL_FLIP_POS         6 //Bit 6: Vertical Flip
+#define REG04_REG_VREF_BIT0_POS             4 //Bit 4: VREF bit 0
+#define REG04_REG_HREF_BIT0_POS             3 //Bit 3: HREF bit 0
+#define REG04_REG_AEC_BIT1_0_POS            0 //Bits [1:0] : AEC bits [1:0]
 
 /* BitMask for REG04_REG bits */
-#define REG04_HORIZONTAL_MIRROR_MASK     (1UL << REG04_HORIZONTAL_MIRROR_POS)
-#define REG04_VERTICAL_FLIP_MASK         (1UL << REG04_VERTICAL_FLIP_POS)
-#define REG04_VREF_BIT0_MASK             (1UL << REG04_VREF_BIT0_POS)
-#define REG04_HREF_BIT0_MASK             (1UL << REG04_HREF_BIT0_POS)
-#define REG04_AEC_BIT0_1_MASK            (0x03 << REG04_AEC_BIT0_1_POS)
+#define REG04_REG_HORIZONTAL_MIRROR_MASK     (1UL << REG04_REG_HORIZONTAL_MIRROR_POS)
+#define REG04_REG_VERTICAL_FLIP_MASK         (1UL << REG04_REG_VERTICAL_FLIP_POS)
+#define REG04_REG_VREF_BIT0_MASK             (1UL << REG04_REG_VREF_BIT0_POS)
+#define REG04_REG_HREF_BIT0_MASK             (1UL << REG04_REG_HREF_BIT0_POS)
+#define REG04_REG_AEC_BIT1_0_MASK            (0x03 << REG04_REG_AEC_BIT1_0_POS)
 
+/* Bit Position inside AEC_REG */
+#define AEC_REG_AEC_BIT9_2_POS            0 //Bits [7:0] : AEC bits [9:2]
+
+/* BitMask for AEC_REG bits */
+#define AEC_REG_AEC_BIT9_2_MASK           (0xFF << AEC_REG_AEC_BIT9_2_POS)
+
+/* Bit Position inside COM8_REG */
+#define COM8_REG_BANDING_FILTER_SEL_POS            5 //Bit 5: Banding Filter
+#define COM8_REG_AUTO_MANUAL_GAIN_CTRL_POS         2 //Bit 2: Automatic Gain Control (AGC) ON/OFF
+#define COM8_REG_AUTO_MANUAL_EXPOSURE_CTRL_POS      0 //Bit 0: Automatic Exposure Controle (AEC) ON/OFF
+
+/* BitMask for COM8_REG bits */
+#define COM8_REG_BANDING_FILTER_SEL_MASK            (1UL << COM8_REG_BANDING_FILTER_SEL_POS)
+#define COM8_REG_AUTO_MANUAL_GAIN_CTRL_MASK         (1UL << COM8_REG_AUTO_MANUAL_GAIN_CTRL_POS)
+#define COM8_REG_AUTO_MANUAL_EXPOSURE_CTRL_MASK      (1UL << COM8_REG_AUTO_MANUAL_EXPOSURE_CTRL_POS)
+
+
+/* Bit Position inside REG45_REG */
+#define REG45_REG_AGC_BIT9_8_POS           6 //Bits [7:6] : AGC bits [9:8]
+#define REG45_REG_AEC_BIT15_10_POS         0 //Bits [5:0] : AEC bits [15:10]
+
+/* BitMask for REG45_REG bits */
+#define REG45_REG_AGC_BIT9_8_MASK          (0x03 << REG45_REG_AGC_BIT9_8_POS)
+#define REG45_REG_AEC_BIT15_10_MASK        (0x3F << REG45_REG_AEC_BIT15_10_POS)
 
 
 
 void vTaskStartCamera(void *pvParameters);
+
+/* Horizontal image flip*/
+void ov2640_hflip(uint8_t state);
+
+/* Vertical Image flip*/
+void ov2640_vflip(uint8_t state);
 
 /* Get Automatic Gain Control value */
 void ov2640_get_agc_value(void);
@@ -149,6 +181,17 @@ void ov2640_set_manual_agc_value(uint8_t gain_value);//gain_value range is 0-255
 
 /* Set Automatic Gain Control */
 void ov2640_enable_agc(void);
+
+/* Get Exposure Time */
+void ov2640_get_exposure_time(void);//Get Exposure Control Value. tp = 27.8ns, Tline = 1922tp. Tex = Tline * AEC[15:0]
+
+/* Set Exposure Time. If Tex > 1 frame period, maximum exposure time is 1 frame period, even if TEX > 1 frame period (OV2640 Behavior) */
+void ov2640_set_manual_exposure_time(uint16_t aec_value)//set Exposure Time. 1/PCLK = 62.5ns, Tline = 1922tp. Tex = Tline * AEC[15:0]
+
+/* Enable Automatic Exposure Control */
+void ov2640_enable_aec(void)
+
+
 
 void CameraComponentTest(void);
 

@@ -434,7 +434,7 @@ void ov2640_get_agc_value(void)
 }
 
 /*Set Gain Control into manual mode and set a value (and disable Automatic Image Brightness adjustments)*/
-void ov2640_set_manual_agc_value(uint8_t gain_value)//gain_value range is 0-255, AGC range is 1-31
+void ov2640_set_manual_agc_value(uint8_t gain_value)//gain_value range is 0-255, AGC range is 1-31 (more gain requires setting REG45[7:6])
 {
     uint8_t com8_register_value = sccb_read_register(i2c_dev_handle, COM8_REG);    
     sccb_write_register(i2c_dev_handle, COM8_REG, (com8_register_value &~ 0x04)); //set manual gain control
@@ -444,7 +444,7 @@ void ov2640_set_manual_agc_value(uint8_t gain_value)//gain_value range is 0-255,
 
     if (com8_agc_bit2 == 0)
     {
-        ESP_LOGI(TAG, "Setting AGC value");
+        ESP_LOGI(TAG, "Setting Gain value");
         sccb_write_register(i2c_dev_handle, GAIN_REG, gain_value);
         ov2640_get_agc_value();
     }
@@ -475,7 +475,7 @@ void ov2640_enable_agc(void)
 void ov2640_hflip(uint8_t state)//Flip image Horizontally or unflip. State = ON or OFF
 {
     uint8_t reg04_register_value = sccb_read_register(i2c_dev_handle, REG04_REG);
-    sccb_write_register(i2c_dev_handle, REG04_REG, ((reg04_register_value & ~REG04_HORIZONTAL_MIRROR_MASK) | ((state << REG04_HORIZONTAL_MIRROR_POS) & REG04_HORIZONTAL_MIRROR_MASK)));
+    sccb_write_register(i2c_dev_handle, REG04_REG, ((reg04_register_value & ~REG04_REG_HORIZONTAL_MIRROR_MASK) | ((state << REG04_REG_HORIZONTAL_MIRROR_POS) & REG04_REG_HORIZONTAL_MIRROR_MASK)));
 
 }
 
@@ -483,10 +483,75 @@ void ov2640_hflip(uint8_t state)//Flip image Horizontally or unflip. State = ON 
 void ov2640_vflip(uint8_t state)//Flip image Vertically or unflip. State = ON or OFF
 {
     uint8_t reg04_register_value = sccb_read_register(i2c_dev_handle, REG04_REG);
-    sccb_write_register(i2c_dev_handle, REG04_REG, ((reg04_register_value & ~REG04_VERTICAL_FLIP_MASK) | ((state << REG04_VERTICAL_FLIP_POS) & REG04_VERTICAL_FLIP_MASK)));
+    sccb_write_register(i2c_dev_handle, REG04_REG, ((reg04_register_value & ~REG04_REG_VERTICAL_FLIP_MASK) | ((state << REG04_REG_VERTICAL_FLIP_POS) & REG04_REG_VERTICAL_FLIP_MASK)));
 
 }
 
+/* Get Exposure Time */
+void ov2640_get_exposure_time(void)//Get Exposure Control Value. 1/PCLK = 62.5ns, Tline = 1922tp. Tex = Tline * AEC[15:0]
+{
+    uint8_t aec_bit15_10 = (sccb_read_register(i2c_dev_handle, REG45_REG) & REG45_REG_AEC_BIT15_10_MASK);
+    uint8_t aec_bit9_2 = (sccb_read_register(i2c_dev_handle, AEC_REG) & AEC_REG_AEC_BIT9_2_MASK);
+    uint8_t aec_bit1_0 = (sccb_read_register(i2c_dev_handle, REG04_REG) & REG04_REG_AEC_BIT1_0_MASK);
+
+    float exposure_time = (((aec_bit15_10 << 10)+ (aec_bit9_2 << 2)+ aec_bit1_0) * (TLINE/1000000000));
+    unsigned int  exposure_time_int = (unsigned int)(exposure_time * 10000); //To display 4 decimals
+
+    ESP_LOGI(TAG, "Exposure Time: %u.%04u ms", (exposure_time_int/10000), exposure_time_int % 10000);
+    ESP_LOGI(TAG, "0x%02X, 0x%02x, 0x%02x", aec_bit15_10, aec_bit9_2, aec_bit1_0);
+}
+
+/* Set Exposure Time. If Tex > 1 frame period, maximum exposure time is 1 frame period, even if TEX > 1 frame period (OV2640 Behavior) */
+void ov2640_set_manual_exposure_time(uint16_t aec_value)//set Exposure Time. 1/PCLK = 62.5ns, Tline = 1922tp. Tex = Tline * AEC[15:0]
+{
+    uint8_t com8_register_value = sccb_read_register(i2c_dev_handle, COM8_REG);    
+    sccb_write_register(i2c_dev_handle, COM8_REG, (com8_register_value &~ COM8_REG_AUTO_MANUAL_EXPOSURE_CTRL_MASK)); //set manual exposure control
+
+    com8_register_value = sccb_read_register(i2c_dev_handle, COM8_REG);
+    uint8_t com8_bit0 = (com8_register_value & COM8_REG_AUTO_MANUAL_EXPOSURE_CTRL_MASK) >> 1;
+
+    if (com8_bit0 == 0)
+    {
+        ESP_LOGI(TAG, "Setting Exposure Time");
+        uint8_t aec_bit15_10 = (aec_value & (REG45_REG_AEC_BIT15_10_MASK << 10)) >> 10;
+        uint8_t aec_bit9_2 = (aec_value & (AEC_REG_AEC_BIT9_2_MASK << 2)) >> 2;
+        uint8_t aec_bit1_0 = (aec_value & REG04_REG_AEC_BIT1_0_MASK);
+
+        uint8_t reg45_register_value = sccb_read_register(i2c_dev_handle, REG45_REG);
+        uint8_t aec_register_value = sccb_read_register(i2c_dev_handle, AEC_REG);
+        uint8_t reg04_register_value = sccb_read_register(i2c_dev_handle, REG04_REG);
+
+        sccb_write_register(i2c_dev_handle, REG45_REG, ((reg45_register_value) & ~REG45_REG_AEC_BIT15_10_MASK) | ((aec_bit15_10 << REG45_REG_AEC_BIT15_10_POS) & REG45_REG_AEC_BIT15_10_MASK));
+        sccb_write_register(i2c_dev_handle, AEC_REG, ((aec_register_value) & ~AEC_REG_AEC_BIT9_2_MASK) | ((aec_bit9_2 << AEC_REG_AEC_BIT9_2_POS) & AEC_REG_AEC_BIT9_2_MASK));
+        sccb_write_register(i2c_dev_handle, REG04_REG, ((reg04_register_value) & ~REG04_REG_AEC_BIT1_0_MASK) | ((aec_bit1_0 << REG04_REG_AEC_BIT1_0_POS) & REG04_REG_AEC_BIT1_0_MASK));
+
+        vTaskDelay(pdMS_TO_TICKS(100));
+
+        ov2640_get_exposure_time();
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Manual Exposure Control is disabled");
+    }    
+
+}
+
+/* Enable Automatic Exposure Control */
+void ov2640_enable_aec(void)
+{
+    uint8_t com8_register_value = sccb_read_register(i2c_dev_handle, COM8_REG);
+    sccb_write_register(i2c_dev_handle, COM8_REG, (com8_register_value | COM8_REG_AUTO_MANUAL_EXPOSURE_CTRL_MASK)); //set automatic exposure control
+    vTaskDelay(pdMS_TO_TICKS(200));
+
+    com8_register_value = sccb_read_register(i2c_dev_handle, COM8_REG);
+    uint8_t com8_bit0 = (com8_register_value & COM8_REG_AUTO_MANUAL_EXPOSURE_CTRL_MASK);
+
+    if (com8_bit0 != 1)
+    {
+        ESP_LOGE(TAG, "Failed to enable Automatic Exposure Control");
+    }
+    ov2640_get_exposure_time();
+}
 
 void CameraComponentTest(void)
 {
@@ -521,7 +586,9 @@ void CameraComponentTest(void)
     read_ov2640_register(sensor_bank, SELECT_SENSOR_BANK);
     ov2640_get_agc_value();
 
-    ov2640_hflip(ON);
-    vTaskDelay(pdMS_TO_TICKS(5));
-    ov2640_hflip(OFF);
+    ov2640_get_exposure_time();
+    ov2640_set_manual_exposure_time(0xFFFF);
+    ov2640_enable_aec();
+   
+    
 }
