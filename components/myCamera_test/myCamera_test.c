@@ -17,6 +17,7 @@
 #define  SELECT_SENSOR_BANK  0x01
 
 #define GPIO_OUT_PIN_SEL_TYPE_1 ((1ULL<<CAMERA_PIN_RESET) | (1ULL<<CAMERA_PIN_PWDN))    //Bit mask for type 1 selected output pins (No pull, no interrupt)
+#define DATA_OUTPUT_PINS_8_BITS ((1ULL << CAMERA_PIN_D2) | (1ULL << CAMERA_PIN_D3) | (1ULL << CAMERA_PIN_D4) | (1ULL << CAMERA_PIN_D5) | (1ULL << CAMERA_PIN_D6) | (1ULL << CAMERA_PIN_D7) | (1ULL << CAMERA_PIN_D8) | (1ULL << CAMERA_PIN_D9))
 
 static const char* TAG = "myCamera";
 
@@ -130,7 +131,6 @@ i2c_device_config_t device_config = {           //I2C MASTER Device Configuratio
 
 i2c_master_bus_handle_t i2c_bus_handle;
 i2c_master_dev_handle_t i2c_dev_handle;
-
 
 /* ERROR CHECKS */
 void error_check_new_master(esp_err_t err)
@@ -414,6 +414,8 @@ void read_ov2640_register(uint8_t *register_bank, uint8_t bank_select)
     ESP_LOGI(TAG, "Bank Select Register Value: %02X", read_buffer[0]);
 }
 
+
+
 /* Get Automatic Gain Control value */
 void ov2640_get_agc_value(void)
 {
@@ -471,6 +473,13 @@ void ov2640_enable_agc(void)
     ov2640_get_agc_value();
 }
 
+/* Disable AGC */
+void ov2640_disable_agc(void)
+{
+    uint8_t com8_register_value = sccb_read_register(i2c_dev_handle, COM8_REG);    
+    sccb_write_register(i2c_dev_handle, COM8_REG, (com8_register_value | COM8_REG_AUTO_MANUAL_GAIN_CTRL_MASK)); //disable manual gain control
+}
+
 /* Horizontal image flip*/
 void ov2640_hflip(uint8_t state)//Flip image Horizontally or unflip. State = ON or OFF
 {
@@ -484,6 +493,22 @@ void ov2640_vflip(uint8_t state)//Flip image Vertically or unflip. State = ON or
 {
     uint8_t reg04_register_value = sccb_read_register(i2c_dev_handle, REG04_REG);
     sccb_write_register(i2c_dev_handle, REG04_REG, ((reg04_register_value & ~REG04_REG_VERTICAL_FLIP_MASK) | ((state << REG04_REG_VERTICAL_FLIP_POS) & REG04_REG_VERTICAL_FLIP_MASK)));
+
+}
+
+/* Set xvclk divider to fix pclk value. Is not sufficient alone. Must be used with other register*/
+void ov2640_set_xvclk_divider(uint8_t divider)//CLK = XVCLK/(decimal value of CLKRC[5:0] + 1) for PCLK. Divider range is 0x00 to 0x3F (i.e 64)
+{
+   
+    if (divider < 64)
+    {
+        uint8_t clkrc_reg_value = sccb_read_register(i2c_dev_handle, CLKRC_REG);
+        sccb_write_register(i2c_dev_handle, CLKRC_REG, ((clkrc_reg_value & ~CLKRC_REG_CLK_DIVIDER_MASK) | (((divider - 1) << CLKRC_REG_CLK_DIVIDER_POS) & CLKRC_REG_CLK_DIVIDER_MASK)));
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Divider value is out of range");
+    }
 
 }
 
@@ -553,6 +578,200 @@ void ov2640_enable_aec(void)
     ov2640_get_exposure_time();
 }
 
+/* Disable AEC */
+void ov2640_disable_aec(void)
+{
+    uint8_t com8_register_value = sccb_read_register(i2c_dev_handle, COM8_REG);    
+    sccb_write_register(i2c_dev_handle, COM8_REG, (com8_register_value | COM8_REG_AUTO_MANUAL_EXPOSURE_CTRL_MASK)); //disable manual exposure control
+}
+
+/* Get Resolution mode (UXGA/CIF/SVGA)*/
+void ov2640_get_resolution(void)
+{
+    uint8_t com7_register_value = (sccb_read_register(i2c_dev_handle, COM7_REG) & COM7_REG_RESOLUTION_SEL_MASK) >> COM7_REG_RESOLUTION_SEL_POS;
+    switch (com7_register_value)
+    {
+        case UXGA_MODE:
+        ESP_LOGI(TAG, "Resolution Mode: UXGA (Full-size)");
+        break;
+
+        case CIF_MODE:
+        ESP_LOGI(TAG, "Resolution Mode: CIF");
+        break;
+
+        case SVGA_MODE:
+        ESP_LOGI(TAG, "Resolution Mode: SVGA");
+        break;
+
+        default:
+        ESP_LOGE(TAG, "Unknown Resolution");
+        break;
+    }
+}
+
+/* Set Resolution mode (UXGA/CIF/SVGA) */
+void ov2640_set_resolution(uint8_t resolution_mode)
+{
+    uint8_t com7_register_value = sccb_read_register(i2c_dev_handle, COM7_REG);
+    sccb_write_register(i2c_dev_handle, COM7_REG, ((com7_register_value & ~COM7_REG_RESOLUTION_SEL_MASK) | ((resolution_mode << COM7_REG_RESOLUTION_SEL_POS) & COM7_REG_RESOLUTION_SEL_MASK)));
+    ov2640_get_resolution();
+}
+
+/* Capture Sequence */
+/* Set Dummy Lines and Pixels for Preview */
+void ov2640_init_preview(uint16_t dummy_lines, uint16_t dummy_pixels)
+{
+    if (dummy_lines < 0x0FF)
+    {
+        sccb_write_register(i2c_dev_handle, FRARL_REG, dummy_lines);
+    }
+    else
+    {
+        sccb_write_register(i2c_dev_handle, FRARL_REG, 0xFF);
+    }
+
+    if (dummy_pixels < 0x0FF)
+    {
+        sccb_write_register(i2c_dev_handle, FLL_REG, dummy_pixels);
+    }
+    else
+    {
+        sccb_write_register(i2c_dev_handle, FLL_REG, 0xFF);
+    }
+}
+
+/* Stop Preview */
+void ov2640_stop_preview(void)
+{
+    ov2640_disable_aec();//Disable AEC
+    ov2640_disable_agc();//Disable AGC
+
+    ov2640_get_exposure_time(); //Get Preview Exposure Time
+    ov2640_get_agc_value(); //Get Preview Gain Value
+
+}
+
+/* Set output format */
+void ov2640_set_image_output_format(uint8_t output_format)
+{
+    sccb_write_register(i2c_dev_handle, RA_DLMT_REG, SELECT_DSP_BANK);
+    uint8_t image_mode_reg_value = ((sccb_read_register(i2c_dev_handle, IMAGE_MODE_REG) & ~IMAGE_MODE_REG_OUTPUT_FORMAT_MASK) | ((output_format << IMAGE_MODE_REG_OUTPUT_FORMAT_POS) & IMAGE_MODE_REG_OUTPUT_FORMAT_MASK));
+    sccb_write_register(i2c_dev_handle, IMAGE_MODE_REG, image_mode_reg_value);
+}
+
+/* Enable JPEG output */
+void ov2640_jpeg_output(uint8_t jpeg_output_state)
+{
+    uint8_t image_mode_reg_value = ((sccb_read_register(i2c_dev_handle, IMAGE_MODE_REG) & ~IMAGE_MODE_REG_JPEG_EN_MASK) | ((jpeg_output_state << IMAGE_MODE_REG_JPEG_EN_POS) & IMAGE_MODE_REG_JPEG_EN_MASK));
+    sccb_write_register(i2c_dev_handle, IMAGE_MODE_REG, image_mode_reg_value);
+}
+
+/* Get ov2640 data output */
+uint8_t ov2640_get_8bits_data_output(void)
+{
+    uint8_t bit9 = ((uint8_t) gpio_get_level(CAMERA_PIN_D9)) << 7;
+    uint8_t bit8 = ((uint8_t) gpio_get_level(CAMERA_PIN_D8)) << 6;
+    uint8_t bit7 = ((uint8_t) gpio_get_level(CAMERA_PIN_D7)) << 5;
+    uint8_t bit6 = ((uint8_t) gpio_get_level(CAMERA_PIN_D6)) << 4;
+    uint8_t bit5 = ((uint8_t) gpio_get_level(CAMERA_PIN_D5)) << 3;
+    uint8_t bit4 = ((uint8_t) gpio_get_level(CAMERA_PIN_D4)) << 2;
+    uint8_t bit3 = ((uint8_t) gpio_get_level(CAMERA_PIN_D3)) << 1;
+    uint8_t bit2 = ((uint8_t) gpio_get_level(CAMERA_PIN_D2));
+
+    return (bit9 + bit8 + bit7 + bit6 + bit5 + bit4 + bit3 + bit2);
+}
+
+/* Interrupt routines for image capture */
+uint16_t rgb565_image_buffer[RES_COLUMNS * RES_ROWS];
+
+volatile bool frame_begin = false;
+volatile bool line_begin = false;
+volatile bool image_captured = false;
+
+volatile int pixel_index = 0;
+volatile int current_line = 0; 
+
+void IRAM_ATTR vsync_isr_handler(void* arg) //New Frame Detection
+{   
+    if (gpio_get_level(CAMERA_PIN_VSYNC) == 0)
+    {
+        image_captured = false;
+        frame_begin = true;
+    }
+    else
+    {
+        image_captured = true;
+        frame_begin = false;
+    }
+}
+
+void IRAM_ATTR href_isr_handler(void* arg) // New Line Detection
+{
+    
+    if (frame_begin == true)
+    {
+        if (gpio_get_level(CAMERA_PIN_HREF) == 1)
+        {
+            line_begin = true;
+            pixel_index = 0;
+            current_line++;
+
+            if (current_line >= RES_ROWS)
+            {
+                current_line = 0;
+            }
+
+        }
+        else
+        {
+            line_begin = false;
+        }
+
+    }
+}
+
+void IRAM_ATTR pclk_isr_handler(void* arg) // New Pixel Detection
+{
+    
+    if (line_begin == true)
+    {   
+        int byte_count = 0;
+        uint8_t pixel_data[2];
+
+        if (current_line < RES_ROWS && pixel_index < RES_COLUMNS) 
+        {
+            
+            if (byte_count < 2)
+            {
+                // Store 16 bit RGB565 LSByte and MSByte
+                pixel_data[byte_count] = ov2640_get_8bits_data_output();
+                byte_count++;
+
+            }
+            else
+            {
+                // Store pixel data inside buffer
+                byte_count = 0;
+                rgb565_image_buffer[current_line * RES_COLUMNS + pixel_index] = (pixel_data[0] << 7) | pixel_data[1];
+                pixel_index++;
+            }
+            
+        }
+    }
+}
+
+esp_err_t ov2640_capture_image(void)
+{
+
+    if (image_captured)
+    {
+        ESP_LOGI(TAG, "Capture confirmed");
+    }
+
+    return ESP_OK;
+}
+
+
 void CameraComponentTest(void)
 {
     ESP_LOGI(TAG, "Camera component successfully linked to main.c");
@@ -567,6 +786,43 @@ void CameraComponentTest(void)
     };
 
     gpio_config(&gpio_config_out_type_1);
+
+    gpio_config_t pclk_gpio_config = { //Configure Pixel Clock pin and interrupt
+        .intr_type = GPIO_INTR_NEGEDGE,
+        .mode = GPIO_MODE_INPUT,
+        .pin_bit_mask = (1ULL << CAMERA_PIN_PCLK),
+    };
+
+    gpio_config(&pclk_gpio_config);
+
+    gpio_config_t href_gpio_config = { //Configure href pin and interrupt
+        .intr_type = GPIO_INTR_POSEDGE,
+        .mode = GPIO_MODE_INPUT,
+        .pin_bit_mask = (1ULL << CAMERA_PIN_HREF),
+    };
+
+    gpio_config(&href_gpio_config);
+
+    gpio_config_t vsync_gpio_config = { //Configure vsync pin and interrupt
+        .intr_type = GPIO_INTR_ANYEDGE,
+        .mode = GPIO_MODE_INPUT,
+        .pin_bit_mask = (1ULL << CAMERA_PIN_VSYNC),
+    };
+
+    gpio_config(&vsync_gpio_config);
+
+    gpio_config_t ov2640_8bits_data_output = {
+        .intr_type = GPIO_INTR_DISABLE,
+        .mode = GPIO_MODE_INPUT,
+        .pin_bit_mask = DATA_OUTPUT_PINS_8_BITS,
+    };
+
+    gpio_config(&ov2640_8bits_data_output);
+
+    gpio_install_isr_service(0);
+    gpio_isr_handler_add(CAMERA_PIN_VSYNC, vsync_isr_handler, NULL);
+    gpio_isr_handler_add(CAMERA_PIN_HREF, href_isr_handler, NULL);
+    gpio_isr_handler_add(CAMERA_PIN_PCLK, pclk_isr_handler, NULL);
 
     vTaskDelay(pdMS_TO_TICKS(5));
     gpio_set_level(CAMERA_PIN_RESET, LOW);
@@ -584,11 +840,11 @@ void CameraComponentTest(void)
     read_ov2640_register(dsp_bank, SELECT_DSP_BANK);
     vTaskDelay(pdMS_TO_TICKS(5));
     read_ov2640_register(sensor_bank, SELECT_SENSOR_BANK);
-    ov2640_get_agc_value();
 
-    ov2640_get_exposure_time();
-    ov2640_set_manual_exposure_time(0xFFFF);
-    ov2640_enable_aec();
-   
+    ov2640_set_resolution(UXGA_MODE);
+    ov2640_set_resolution(CIF_MODE);
+    ov2640_set_resolution(SVGA_MODE);
+
+    ov2640_capture_image();
     
 }

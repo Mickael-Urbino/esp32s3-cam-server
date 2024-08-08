@@ -5,10 +5,20 @@
 
 #define OV2640_I2C_ADDRESS      0x30                    //7-bit Address. Write is 0x60 and read is 0x61 
 #define OV2640_I2C_HZ_FREQ      100000                  //100kHz
-#define OV2640_PCLK_HZ_FREQ     36000000                //36MHz
-#define OV2640_MCLK_HZ_FREQ     16000000                //24MHz is to much for esp32-S3, max is 20MHz. OV2640 range 6MHz-20MHz. Try Using 16MHz
-#define PIXEL_PERIOD            62.5                   //62.5ns
+#define OV2640_MCLK_HZ_FREQ     16000000                //24MHz is too much for esp32-S3, max is 20MHz. OV2640 range 6MHz-20MHz. Try Using 16MHz
+#define PIXEL_PERIOD            62.5                    //62.5ns
 #define TLINE                   (1922 * PIXEL_PERIOD)
+
+#define UXGA_MODE               0
+#define CIF_MODE                2
+#define SVGA_MODE               4
+
+#define YUV422_OUTPUT           0
+#define RAW10_OUTPUT            1
+#define RGB565_OUTPUT           2
+
+#define RES_COLUMNS             1600
+#define RES_ROWS                1200
 
 /* Definition of Camera pins */
 
@@ -144,15 +154,35 @@
 /* BitMask for AEC_REG bits */
 #define AEC_REG_AEC_BIT9_2_MASK           (0xFF << AEC_REG_AEC_BIT9_2_POS)
 
+/* Bit Position inside CLKRC_REG */
+#define CLKRC_REG_INTERNAL_PLL_SEL_POS         7 //Bit 7: Internal Frequency doubler (ON/OFF)
+#define CLKRC_REG_CLK_DIVIDER_POS              0 //Bit 0: Clock Divider
+
+/* BitMask for CLKRC_REG bits */
+#define CLKRC_REG_INTERNAL_PLL_SEL_MASK       (1UL << CLKRC_REG_INTERNAL_PLL_SEL_POS)
+#define CLKRC_REG_CLK_DIVIDER_MASK            (0x3F << CLKRC_REG_CLK_DIVIDER_POS)
+
+/* Bit Position inside COM7_REG */
+#define COM7_REG_SRST_POS                       7 //Bit 7: Software Reset
+#define COM7_REG_RESOLUTION_SEL_POS             4 //Bits [6:4]: UXGA/CIF/SVGA Resolution selection
+#define COM7_REG_ZOOM_MODE_POS                  2 //Bit 2: Zoom Mode
+#define COM7_REG_COLOR_BAR_TEST_SEL_POS         1 //Bit 1: Color bar test pattern ON/OFF
+
+/* BitMask for COM7_REG bits */
+#define COM7_REG_SRST_MASK                      (1UL << COM7_REG_SRST_POS)
+#define COM7_REG_RESOLUTION_SEL_MASK            (0x07 << COM7_REG_RESOLUTION_SEL_POS)
+#define COM7_REG_ZOOM_MODE_MASK                 (1UL << COM7_REG_ZOOM_MODE_POS)
+#define COM7_REG_COLOR_BAR_TEST_SEL_MASK        (1UL << COM7_REG_COLOR_BAR_TEST_SEL_POS)
+
 /* Bit Position inside COM8_REG */
 #define COM8_REG_BANDING_FILTER_SEL_POS            5 //Bit 5: Banding Filter
 #define COM8_REG_AUTO_MANUAL_GAIN_CTRL_POS         2 //Bit 2: Automatic Gain Control (AGC) ON/OFF
-#define COM8_REG_AUTO_MANUAL_EXPOSURE_CTRL_POS      0 //Bit 0: Automatic Exposure Controle (AEC) ON/OFF
+#define COM8_REG_AUTO_MANUAL_EXPOSURE_CTRL_POS     0 //Bit 0: Automatic Exposure Controle (AEC) ON/OFF
 
 /* BitMask for COM8_REG bits */
 #define COM8_REG_BANDING_FILTER_SEL_MASK            (1UL << COM8_REG_BANDING_FILTER_SEL_POS)
 #define COM8_REG_AUTO_MANUAL_GAIN_CTRL_MASK         (1UL << COM8_REG_AUTO_MANUAL_GAIN_CTRL_POS)
-#define COM8_REG_AUTO_MANUAL_EXPOSURE_CTRL_MASK      (1UL << COM8_REG_AUTO_MANUAL_EXPOSURE_CTRL_POS)
+#define COM8_REG_AUTO_MANUAL_EXPOSURE_CTRL_MASK     (1UL << COM8_REG_AUTO_MANUAL_EXPOSURE_CTRL_POS)
 
 
 /* Bit Position inside REG45_REG */
@@ -163,6 +193,21 @@
 #define REG45_REG_AGC_BIT9_8_MASK          (0x03 << REG45_REG_AGC_BIT9_8_POS)
 #define REG45_REG_AEC_BIT15_10_MASK        (0x3F << REG45_REG_AEC_BIT15_10_POS)
 
+
+/* Bit Position inside IMAGE_MODE_REG */
+#define IMAGE_MODE_REG_Y8_EN_POS            6 //Bit 6 : Y8 Enable
+#define IMAGE_MODE_REG_JPEG_EN_POS          4 //Bit 4 : Enable/Disable JPEG Output
+#define IMAGE_MODE_REG_OUTPUT_FORMAT_POS    2 //Bits [3:2] : DVP Output Format (YUV422/RAW10/GBG565)
+#define IMAGE_MODE_REG_HREF_TIMING_POS      1 //Bit 1 : HREF Timing Select (in DVP JPEG Output mode)
+#define IMAGE_MODE_REG_DVP_BYTE_SWAP_POS    0 //Bit 0 : Byte swap enable for DVP
+
+
+/* Bitmask for IMAGE_MODE_REG */
+#define IMAGE_MODE_REG_Y8_EN_MASK           (1UL << IMAGE_MODE_REG_Y8_EN_POS)
+#define IMAGE_MODE_REG_JPEG_EN_MASK         (1UL << IMAGE_MODE_REG_JPEG_EN_POS)
+#define IMAGE_MODE_REG_OUTPUT_FORMAT_MASK   (0x03 << IMAGE_MODE_REG_OUTPUT_FORMAT_POS)
+#define IMAGE_MODE_REG_HREF_TIMING_MASK     (1UL << IMAGE_MODE_REG_HREF_TIMING_POS)
+#define IMAGE_MODE_REG_DVP_BYTE_SWAP_MASK   (1UL << IMAGE_MODE_REG_DVP_BYTE_SWAP_POS)
 
 
 void vTaskStartCamera(void *pvParameters);
@@ -186,10 +231,10 @@ void ov2640_enable_agc(void);
 void ov2640_get_exposure_time(void);//Get Exposure Control Value. tp = 27.8ns, Tline = 1922tp. Tex = Tline * AEC[15:0]
 
 /* Set Exposure Time. If Tex > 1 frame period, maximum exposure time is 1 frame period, even if TEX > 1 frame period (OV2640 Behavior) */
-void ov2640_set_manual_exposure_time(uint16_t aec_value)//set Exposure Time. 1/PCLK = 62.5ns, Tline = 1922tp. Tex = Tline * AEC[15:0]
+void ov2640_set_manual_exposure_time(uint16_t aec_value);//set Exposure Time. 1/PCLK = 62.5ns, Tline = 1922tp. Tex = Tline * AEC[15:0]
 
 /* Enable Automatic Exposure Control */
-void ov2640_enable_aec(void)
+void ov2640_enable_aec(void);
 
 
 
